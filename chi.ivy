@@ -1,0 +1,195 @@
+#lang ivy1.7
+
+type node_t
+type cache_state_t = {cs_i, cs_uc, cs_ud, cs_sc}
+type hn_cache_state_t = {hcs_i, hcs_c, hcs_d}
+individual home_node: node_t
+individual hn_cache_state: hn_cache_state_t
+individual slave_node: node_t
+individual cache_state(N: node_t): cache_state_t
+relation wait(N: node_t)
+
+function cs_u(N: node_t): bool
+definition cs_u(n: node_t) = ~(cache_state(n) = cs_sc | cache_state(n) = cs_i)
+
+type message_type_t = { req_read_sc_t, req_read_uc_t, req_read_no_snp_t, compdata_uc_t, compdata_sc_t, compack_t, snp_read_sc_fwd_t, snp_read_uc_fwd_t }
+
+type message_t = struct {
+    t: message_type_t,
+    src: node_t,
+    dst: node_t,
+    arg1: node_t
+}
+
+relation messages(M: message_t)
+
+after init {
+    cache_state(N) := cs_i;
+    wait(N) := false;
+    messages(M) := false;
+    hn_cache_state := hcs_i;
+}
+
+action send_compdata(src: node_t, dst: node_t, s: cache_state_t) = {
+    var msg: message_t;
+    if s = cs_uc {
+        msg.t := compdata_uc_t;
+    } else if s = cs_sc {
+        msg.t := compdata_sc_t;
+    } else {
+        assert false;
+    }
+    msg.src := src;
+    msg.dst := dst;
+
+    assert ~messages(msg);
+    messages(msg) := true;
+}
+
+action send_compack(src: node_t, dst: node_t) = {
+    var msg: message_t;
+    msg.t := compack_t;
+    msg.src := src;
+    msg.dst := dst;
+
+    assert ~messages(msg);
+    messages(msg) := true;
+}
+
+
+# rn
+action rn_req_read(rn: node_t, mt: message_type_t) = {
+    require rn ~= home_node & rn ~= slave_node;
+    require cache_state(rn) = cs_i;
+    require ~wait(rn);
+    require mt = req_read_sc_t | mt = req_read_uc_t;
+
+    var msg: message_t;
+    msg.t := mt;
+    msg.src := rn;
+    msg.dst := home_node;
+
+    assert ~messages(msg);
+    messages(msg) := true;
+
+    wait(rn) := true;
+}
+
+export rn_req_read
+
+action rn_wait_compdata(m: message_t) = {
+    require messages(m) & (m.t = compdata_uc_t | m.t = compdata_sc_t);
+    assert wait(m.dst);
+    messages(m) := false;
+
+    call send_compack(m.dst, home_node);
+    if m.t = compdata_uc_t {
+        cache_state(m.dst) := cs_uc;
+    } else if m.t = compdata_sc_t {
+        cache_state(m.dst) := cs_sc;
+    } else {
+        assert false;
+    }
+    wait(m.dst) := false;
+}
+
+export rn_wait_compdata
+
+action rn_handle_snp_read_sc_fwd(m: message_t) = {
+    require messages(m) & m.t = snp_read_sc_fwd_t;
+    messages(m) := false;
+    call send_compdata(m.dst, m.arg1, cs_sc);
+    cache_state(m.dst) := cs_sc;
+}
+
+export rn_handle_snp_read_sc_fwd
+
+action hn_req_read_no_snp(rn: node_t) = {
+    assert rn ~= home_node & rn ~= slave_node;
+
+    var msg: message_t;
+    msg.t := req_read_no_snp_t;
+    msg.src := home_node;
+    msg.dst := slave_node;
+    msg.arg1 := rn;
+
+    assert ~messages(msg);
+    messages(msg) := true;
+}
+
+action hn_handle_req(m: message_t) = {
+    require m.dst = home_node & messages(m) & ~wait(home_node);
+    if m.t = req_read_sc_t {
+        if forall N. ~cs_u(N) {
+            # no sc
+            if hn_cache_state = hcs_i {
+                call hn_req_read_no_snp(m.src);
+            } else if hn_cache_state = hcs_c | hn_cache_state = hcs_d {
+                call send_compdata(home_node, m.src, cs_sc);
+            } else {
+                assert false;
+            }
+        } else if some uc_rn: node_t. (cache_state(uc_rn) = cs_uc | cache_state(uc_rn) = cs_ud) {
+            var msg: message_t;
+            msg.t := snp_read_sc_fwd_t;
+            msg.src := home_node;
+            msg.dst := uc_rn;
+            msg.arg1 := m.src;
+
+            assert ~messages(msg);
+            messages(msg) := true;
+        } else {
+            assert false;
+        }
+    } 
+    # else if m.t = req_read_uc_t {
+    #     if forall N. cache_state(N) = cs_i {
+    #         call hn_req_read_no_snp(m.src);
+    #     } else if some uc_rn: node_t. (cache_state(uc_rn) = cs_uc | cache_state(uc_rn) = cs_ud) {
+    #         var msg: message_t;
+    #         msg.t := snp_read_uc_fwd_t;
+    #         msg.src := home_node;
+    #         msg.dst := uc_rn;
+    #         msg.arg1 := m.src;
+
+    #         assert ~messages(msg);
+    #         messages(msg) := true;
+    #     } else {
+    #         assert false;
+    #     }
+    # }
+    else {
+        assert false
+    }
+    wait(home_node) := true;
+    messages(m) := false;
+}
+
+export hn_handle_req
+
+action hn_handle_ack(m: message_t) = {
+    require m.dst = home_node & messages(m) & wait(home_node);
+    messages(m) := false;
+    wait(home_node) := false;
+    if m.t = compack_t {
+        wait(home_node) := false;
+    } else {
+        assert false;
+    }
+}
+
+export hn_handle_ack
+
+action sn_handle_req(m: message_t) = {
+    require m.dst = slave_node & messages(m);
+    messages(m) := false;
+    if m.t = req_read_no_snp_t {
+        call send_compdata(slave_node, m.arg1, cs_uc);
+    } else {
+        assert false;
+    }
+}
+
+export sn_handle_req
+
+invariant (cs_u(A) & cs_u(B)) -> A = B
