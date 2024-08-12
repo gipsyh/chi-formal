@@ -1,0 +1,63 @@
+#lang ivy1.8
+
+include basic
+
+type req_msg_type_t = { req_read_not_share_dirty_t, req_read_no_snp_t }
+
+object req_msg_t = {
+    type this = struct {
+        src_id: nid_t,
+        tgt_id: nid_t,
+        txn_id: slot_id_t,
+        addr: addr_t,
+        opcode: req_msg_type_t,
+        dbid: slot_id_t,
+        return_nid: nid_t,
+        return_txn_id: slot_id_t
+    }
+}
+
+type data_msg_type_t = { data_todo_t }
+
+object data_msg_t = {
+    type this = struct {
+        src_id: nid_t,
+        tgt_id: nid_t,
+        txn_id: slot_id_t,
+        opcode: data_msg_type_t,
+        home_nid: nid_t,
+        dbid: slot_id_t,
+        data: data_t
+
+    }
+}
+
+module channel_t(qobj) = {
+    type index_t
+    interpret index_t -> int
+
+    var head: index_t
+    var tail: index_t
+    var map(I: index_t): qobj
+    
+    after init {
+        head := 0;
+        tail := 0;
+    }
+
+    action is_empty returns (res: bool) = {
+        res := head = tail;
+    }
+
+    action send(m: qobj) = {
+        map(head) := m;
+        head := head + 1;
+    }
+
+    action recv returns (res: qobj) = {
+        res := map(tail);
+        tail := tail + 1;
+    }
+
+    invariant head >= tail
+}

@@ -1,0 +1,68 @@
+#lang ivy1.8
+
+include basic
+include message
+
+object slot_t = {
+    type this = struct {
+        valid: bool,
+        addr: addr_t
+    }
+}
+
+module node_t = {
+    individual cache_state(A: addr_t): cache_state_t
+    individual cache_data(A: addr_t): data_t
+    individual txn_slots(T: slot_id_t): slot_t
+    var txn_id_p: slot_id_t
+
+    function cs_is_u(A: addr_t): bool
+    definition cs_is_u(A: addr_t) = cache_state(A) = cs_ud | cache_state(A) = cs_uc
+    
+    function cs_is_c(A: addr_t): bool
+    definition cs_is_c(A: addr_t) = cache_state(A) = cs_sc | cache_state(A) = cs_uc
+
+    function cs_is_d(A: addr_t): bool
+    definition cs_is_d(A: addr_t) = cache_state(A) = cs_ud
+
+    function cs_is_i(A: addr_t): bool
+    definition cs_is_i(A: addr_t) = cache_state(A) = cs_i
+
+    invariant cs_is_i(A) | cs_is_c(A) | cs_is_d(A)
+
+    instance req_channel: channel_t(req_msg_t)
+    instance data_channel: channel_t(data_msg_t)
+
+    after init {
+        txn_slots(S).valid := false;
+        cache_state(A) := cs_i;
+        txn_id_p := 0;
+    }
+
+    action new_txn_id returns (res: slot_id_t) = {
+        res := txn_id_p;
+        txn_id_p := txn_id_p + 1;
+    }
+
+    # action free_txn_id(id: slot_id_t) = {
+    #     assert txn_slot(id);
+    #     txn_slot(id).valid := false;
+    # }
+}
+
+instance nodes(N: nid_t): node_t
+
+invariant nodes(hn_nid).cs_is_i(A)
+invariant nodes(sn_nid).cs_is_i(A)
+
+action send_req_msg(src_id: nid_t, tgt_id: nid_t, m: req_msg_t) = {
+    m.src_id := src_id;
+    m.tgt_id := tgt_id;
+    nodes(tgt_id).req_channel.send(m);
+}
+
+action send_data_msg(src_id: nid_t, tgt_id: nid_t, m: data_msg_t) = {
+    m.src_id := src_id;
+    m.tgt_id := tgt_id;
+    nodes(tgt_id).data_channel.send(m);
+}
