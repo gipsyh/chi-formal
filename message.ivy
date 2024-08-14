@@ -1,8 +1,8 @@
-#lang ivy1.8
+#lang ivy1.7
 
 include basic
 
-type req_msg_type_t = { req_read_not_share_dirty_t, req_read_no_snp_t }
+type req_msg_type_t = { req_read_not_share_dirty_t, req_read_no_snp_t, req_read_unique_t }
 
 object req_msg_t = {
     type this = struct {
@@ -27,19 +27,27 @@ object data_msg_t = {
         opcode: data_msg_type_t,
         home_nid: nid_t,
         dbid: slot_id_t,
-        data: data_t
+        data: data_t,
+        # TODO: replace to resp
+        share: bool
+    }
+}
 
+object resp_msg_t = {
+    type this = struct {
+        src_id: nid_t,
+        tgt_id: nid_t,
+        txn_id: slot_id_t
     }
 }
 
 module channel_t(qobj) = {
     type index_t
     interpret index_t -> int
-
     var head: index_t
     var tail: index_t
     var map(I: index_t): qobj
-    
+
     after init {
         head := 0;
         tail := 0;

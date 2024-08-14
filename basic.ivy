@@ -1,11 +1,11 @@
-#lang ivy1.8
+#lang ivy1.7
 
 type addr_t
 type data_t
 type nid_t
 type slot_id_t
 
-interpret slot_id_t -> bv[2]
+interpret slot_id_t -> int
 
 type cache_state_t = {cs_i, cs_uc, cs_ud, cs_sc}
 

@@ -1,4 +1,4 @@
-#lang ivy1.8
+#lang ivy1.7
 
 include node
 
@@ -6,12 +6,12 @@ individual memory(A: addr_t): data_t
 
 action rn_req_read(rn: nid_t, addr: addr_t) = {
     require is_rn(rn);
-    local m: req_msg_t {
-        m.txn_id := nodes(rn).new_txn_id;
-        m.addr := addr;
-        m.opcode := req_read_not_share_dirty_t;
-        send_req_msg(rn, hn_nid, m);
-    }
+    var m: req_msg_t; 
+    m.txn_id := nodes(rn).new_txn_id;
+    m.addr := addr;
+    m.opcode := req_read_not_share_dirty_t;
+    nodes(rn).txn_slots(m.txn_id).addr := addr;
+    send_req_msg(rn, hn_nid, m);
 }
 export rn_req_read
 
@@ -23,14 +23,13 @@ action hn_handle_req = {
             assert false;
         } else {
             if nodes(hn_nid).cs_is_i(m.addr) {
-                local rm: req_msg_t {
-                    rm.txn_id := nodes(hn_nid).new_txn_id;
-                    rm.addr := m.addr;
-                    rm.opcode := req_read_no_snp_t;
-                    rm.return_nid := m.src_id;
-                    rm.return_txn_id := m.txn_id;
-                    send_req_msg(hn_nid, sn_nid, rm);
-                }
+                var rm: req_msg_t;
+                rm.txn_id := nodes(hn_nid).new_txn_id;
+                rm.addr := m.addr;
+                rm.opcode := req_read_no_snp_t;
+                rm.return_nid := m.src_id;
+                rm.return_txn_id := m.txn_id;
+                send_req_msg(hn_nid, sn_nid, rm);
             } else {
                 assert false;
             }
@@ -50,6 +49,7 @@ action sn_handle_req = {
             dm.data := memory(m.addr);
             dm.home_nid := m.src_id;
             dm.dbid := m.txn_id;
+            dm.share := false;
             send_data_msg(sn_nid, m.return_nid, dm);
         }
     } else {
@@ -62,10 +62,27 @@ action rn_handle_data(rn: nid_t) = {
     require is_rn(rn);
     require ~nodes(rn).data_channel.is_empty;
     var m: data_msg_t := nodes(rn).data_channel.recv;
-    # nodes(rn).cache_data()
+    var addr: addr_t := nodes(rn).txn_slots(m.txn_id).addr;
+    nodes(rn).cache_data(addr) := m.data;
+    if m.share {
+        nodes(rn).cache_state(addr) := cs_sc;
+    } else {
+        nodes(rn).cache_state(addr) := cs_uc;
+    }
+    var rspm: resp_msg_t;
+    rspm.txn_id := m.dbid;
+    send_resp_msg(rn, m.home_nid, rspm);
 }
 export rn_handle_data
 
+action hn_handle_resp = {
+    require ~nodes(hn_nid).resp_channel.is_empty;
+    var m: resp_msg_t := nodes(hn_nid).resp_channel.recv;
+}
+export hn_handle_resp
+
 invariant (nodes(X).cs_is_u(A) & nodes(Y).cs_is_u(A)) -> X = Y
+# invariant nodes(X).cs_is_c(A) -> (memory(A) = nodes(X).cache_data(A))
 
 attribute method = bmc[10]
+# attribute method = ic

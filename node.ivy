@@ -1,4 +1,4 @@
-#lang ivy1.8
+#lang ivy1.7
 
 include basic
 include message
@@ -28,10 +28,9 @@ module node_t = {
     function cs_is_i(A: addr_t): bool
     definition cs_is_i(A: addr_t) = cache_state(A) = cs_i
 
-    invariant cs_is_i(A) | cs_is_c(A) | cs_is_d(A)
-
     instance req_channel: channel_t(req_msg_t)
     instance data_channel: channel_t(data_msg_t)
+    instance resp_channel: channel_t(resp_msg_t)
 
     after init {
         txn_slots(S).valid := false;
@@ -44,10 +43,8 @@ module node_t = {
         txn_id_p := txn_id_p + 1;
     }
 
-    # action free_txn_id(id: slot_id_t) = {
-    #     assert txn_slot(id);
-    #     txn_slot(id).valid := false;
-    # }
+    action free_txn_id(id: slot_id_t) = {
+    }
 }
 
 instance nodes(N: nid_t): node_t
@@ -65,4 +62,10 @@ action send_data_msg(src_id: nid_t, tgt_id: nid_t, m: data_msg_t) = {
     m.src_id := src_id;
     m.tgt_id := tgt_id;
     nodes(tgt_id).data_channel.send(m);
+}
+
+action send_resp_msg(src_id: nid_t, tgt_id: nid_t, m: resp_msg_t) = {
+    m.src_id := src_id;
+    m.tgt_id := tgt_id;
+    nodes(tgt_id).resp_channel.send(m);
 }
