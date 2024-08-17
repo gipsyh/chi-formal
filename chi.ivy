@@ -4,29 +4,43 @@ include node
 
 individual memory(A: addr_t): data_t
 
-export action rn_req_read(rn: nid_t, addr: addr_t) = {
-    require is_rn(rn);
-    var mid: index_t := nodes(hn_nid).req_channel.push;
+export action rn_req_read_not_share_dirty(rn: nid_t, addr: addr_t) = {
+    require is_rn(rn) & nodes(rn).cs_is_i(addr);
+    var mid: index_t := nodes(hn_nid).req_channel.send;
     reqmsg(mid).src_id := rn;
     reqmsg(mid).tgt_id := hn_nid;
-    reqmsg(mid).txn_id := nodes(rn).txn_slots_fifo.push;
+    reqmsg(mid).txn_id := nodes(rn).txns_slots.new;
     reqmsg(mid).addr := addr;
     reqmsg(mid).opcode := req_read_not_share_dirty_t;
-    nodes(rn).txn_slots(reqmsg(mid).txn_id).addr := addr;
+    nodes(rn).txns(reqmsg(mid).txn_id).addr := addr;
 }
+
+# export action rn_req_read_unique(rn: nid_t, addr: addr_t) = {
+#     require is_rn(rn) & (nodes(rn).cs_is_i(addr) | nodes(rn).cache_state(addr) = cs_sc);
+#     var mid: index_t := nodes(hn_nid).req_channel.push;
+#     reqmsg(mid).src_id := rn;
+#     reqmsg(mid).tgt_id := hn_nid;
+#     reqmsg(mid).txn_id := nodes(rn).txn_slots_fifo.push;
+#     reqmsg(mid).addr := addr;
+#     reqmsg(mid).opcode := req_read_unique_t;
+#     nodes(rn).txn_slots(reqmsg(mid).txn_id).addr := addr;
+# }
 
 export action hn_handle_req = {
     require ~nodes(hn_nid).req_channel.is_empty;
-    var mid: index_t := nodes(hn_nid).req_channel.pop;
+    var mid: index_t := nodes(hn_nid).req_channel.recv;
     if reqmsg(mid).opcode = req_read_not_share_dirty_t {
-        if some (u_rn: nid_t) nodes(u_rn).cs_is_u(reqmsg(mid).addr) {
-            assert false;
+        if some (u_rn: nid_t) is_rn(u_rn) & nodes(u_rn).cs_is_u(reqmsg(mid).addr) {
+            # var smid: index_t := nodes(u_rn).snp_channel.push;
+            # snpmsg(smid).src_id := hn_nid;
+            # snpmsg(smid).tgt_id := u_rn;
+            # assert false;
         } else {
             if nodes(hn_nid).cs_is_i(reqmsg(mid).addr) {
-                var rmid: index_t := nodes(sn_nid).req_channel.push;
+                var rmid: index_t := nodes(sn_nid).req_channel.send;
                 reqmsg(rmid).src_id := hn_nid;
                 reqmsg(rmid).tgt_id := sn_nid;
-                reqmsg(rmid).txn_id := nodes(hn_nid).txn_slots_fifo.push;
+                reqmsg(rmid).txn_id := nodes(hn_nid).txns_slots.new;
                 reqmsg(rmid).addr := reqmsg(mid).addr;
                 reqmsg(rmid).opcode := req_read_no_snp_t;
                 reqmsg(rmid).return_nid := reqmsg(mid).src_id;
@@ -42,10 +56,10 @@ export action hn_handle_req = {
 
 export action sn_handle_req = {
     require ~nodes(sn_nid).req_channel.is_empty;
-    var mid: index_t := nodes(sn_nid).req_channel.pop;
+    var mid: index_t := nodes(sn_nid).req_channel.recv;
     if reqmsg(mid).opcode = req_read_no_snp_t {
         var tgt: nid_t := reqmsg(mid).return_nid;
-        var dmid: index_t := nodes(tgt).data_channel.push;
+        var dmid: index_t := nodes(tgt).data_channel.send;
         dmsg(dmid).src_id := sn_nid;
         dmsg(dmid).tgt_id := tgt;
         dmsg(dmid).txn_id := reqmsg(mid).return_txn_id;
@@ -61,8 +75,8 @@ export action sn_handle_req = {
 export action rn_handle_data(rn: nid_t) = {
     require is_rn(rn);
     require ~nodes(rn).data_channel.is_empty;
-    var dmid: index_t := nodes(rn).data_channel.pop;
-    var addr: addr_t := nodes(rn).txn_slots(dmsg(dmid).txn_id).addr;
+    var dmid: index_t := nodes(rn).data_channel.recv;
+    var addr: addr_t := nodes(rn).txns(dmsg(dmid).txn_id).addr;
     nodes(rn).cache_data(addr) := dmsg(dmid).data;
     if dmsg(dmid).share {
         nodes(rn).cache_state(addr) := cs_sc;
@@ -70,7 +84,7 @@ export action rn_handle_data(rn: nid_t) = {
         nodes(rn).cache_state(addr) := cs_uc;
     }
     var tgt: nid_t := dmsg(dmid).home_nid;
-    var rmid: index_t := nodes(tgt).resp_channel.push;
+    var rmid: index_t := nodes(tgt).resp_channel.send;
     respmsg(rmid).src_id := rn;
     respmsg(rmid).tgt_id := tgt;
     respmsg(rmid).txn_id := dmsg(dmid).dbid;
@@ -78,7 +92,7 @@ export action rn_handle_data(rn: nid_t) = {
 
 export action hn_handle_resp = {
     require ~nodes(hn_nid).resp_channel.is_empty;
-    var m: resp_msg_t := nodes(hn_nid).resp_channel.recv;
+    var rmid: index_t := nodes(hn_nid).resp_channel.recv;
 }
 
 invariant (nodes(X).cs_is_u(A) & nodes(Y).cs_is_u(A)) -> X = Y

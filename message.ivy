@@ -35,32 +35,33 @@ module resp_msg_t = {
     individual txn_id: index_t
 }
 
-module fifo_t = {
+type snp_msg_type_t = { snp_read_not_share_dirty_fwd_t }
+
+module snp_msg_t = {
+    individual src_id: nid_t
+    individual tgt_id: nid_t
+    individual txn_id: index_t
+    individual opcode: snp_msg_type_t
+}
+
+module slots_t = {
     var head: index_t
-    var tail: index_t
 
     after init {
         head := 0;
-        tail := 0;
     }
 
-    action is_empty returns(res: bool) = {
-        res := head = tail
-    }
-
-    action push returns(res: index_t) = {
+    action new returns(res: index_t) = {
         res := head;
         head := head + 1;
     }
-
-    action pop returns (res: index_t) = {
-        res := tail;
-        tail := tail + 1;
-    }
-
-    invariant head >= tail
 }
 
 instance reqmsg(I: index_t): req_msg_t
+instance reqmsg_slots: slots_t
 instance dmsg(I: index_t): data_msg_t
+instance dmsg_slots: slots_t
 instance respmsg(I: index_t): resp_msg_t
+instance respmsg_slots: slots_t
+instance snpmsg(I: index_t): snp_msg_t
+instance snpmsg_slots: slots_t

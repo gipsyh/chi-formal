@@ -3,16 +3,48 @@
 include basic
 include message
 
-module slot_t = {
+module txn_slot_t = {
     individual valid: bool
     individual addr: addr_t
+
+    after init {
+        valid := false;
+    }
+}
+
+module channel_t(slots) = {
+    var head: index_t
+    var tail: index_t
+    individual map(I: index_t): index_t
+
+    after init {
+        head := 0;
+        tail := 0;
+    }
+
+    action is_empty returns(res: bool) = {
+        res := head = tail
+    }
+
+    action send returns(res: index_t) = {
+        map(head) := slots.new;
+        res := map(head);
+        head := head + 1;
+    }
+
+    action recv returns (res: index_t) = {
+        res := map(tail);
+        tail := tail + 1;
+    }
+
+    invariant head >= tail
 }
 
 module node_t = {
     individual cache_state(A: addr_t): cache_state_t
     individual cache_data(A: addr_t): data_t
-    instance txn_slots_fifo: fifo_t
-    instance txn_slots(T: index_t): slot_t
+    instance txns(T: index_t): txn_slot_t
+    instance txns_slots: slots_t
 
     function cs_is_u(A: addr_t): bool
     definition cs_is_u(A: addr_t) = cache_state(A) = cs_ud | cache_state(A) = cs_uc
@@ -26,12 +58,12 @@ module node_t = {
     function cs_is_i(A: addr_t): bool
     definition cs_is_i(A: addr_t) = cache_state(A) = cs_i
 
-    instance req_channel: fifo_t
-    instance data_channel: fifo_t
-    instance resp_channel: fifo_t
+    instance req_channel: channel_t(reqmsg_slots)
+    instance data_channel: channel_t(dmsg_slots)
+    instance resp_channel: channel_t(respmsg_slots)
+    instance snp_channel: channel_t(snpmsg_slots)
 
     after init {
-        txn_slots(S).valid := false;
         cache_state(A) := cs_i;
     }
 }
@@ -40,30 +72,3 @@ instance nodes(N: nid_t): node_t
 
 invariant nodes(hn_nid).cs_is_i(A)
 invariant nodes(sn_nid).cs_is_i(A)
-
-# action send_req_msg(src_id: nid_t, tgt_id: nid_t, txn_id: index_t, addr: addr_t, 
-#                     opcode: req_msg_type_t, dbid: index_t, return_nid: nid_t,
-#                     return_txn_id: index_t) = {
-#     var idx: index_t := nodes(tgt_id).req_channel.send;
-#     nodes(tgt_id).req_channel.map(idx).src_id := src_id;
-#     nodes(tgt_id).req_channel.map(idx).tgt_id := tgt_id;
-#     nodes(tgt_id).req_channel.map(idx).txn_id := txn_id;
-#     nodes(tgt_id).req_channel.map(idx).addr := addr;
-#     nodes(tgt_id).req_channel.map(idx).opcode := opcode;
-#     nodes(tgt_id).req_channel.map(idx).dbid := dbid;
-#     nodes(tgt_id).req_channel.map(idx).return_nid := return_nid;
-#     nodes(tgt_id).req_channel.map(idx).return_txn_id := return_txn_id;
-# }
-
-
-# action send_data_msg(src_id: nid_t, tgt_id: nid_t, m: data_msg_t) = {
-#     m.src_id := src_id;
-#     m.tgt_id := tgt_id;
-#     nodes(tgt_id).data_channel.send(m);
-# }
-
-# action send_resp_msg(src_id: nid_t, tgt_id: nid_t, m: resp_msg_t) = {
-#     m.src_id := src_id;
-#     m.tgt_id := tgt_id;
-#     nodes(tgt_id).resp_channel.send(m);
-# }
