@@ -7,12 +7,12 @@ type req_msg_type_t = { req_read_not_share_dirty_t, req_read_no_snp_t, req_read_
 module req_msg_t = {
     individual src_id: nid_t
     individual tgt_id: nid_t
-    individual txn_id: index_t
+    individual txn_id: slot_idx_t
     individual addr: addr_t
     individual opcode: req_msg_type_t
-    individual dbid: index_t
+    individual dbid: slot_idx_t
     individual return_nid: nid_t
-    individual return_txn_id: index_t
+    individual return_txn_id: slot_idx_t
 }
 
 type data_msg_type_t = { data_todo_t }
@@ -20,10 +20,10 @@ type data_msg_type_t = { data_todo_t }
 module data_msg_t = {
     individual src_id: nid_t
     individual tgt_id: nid_t
-    individual txn_id: index_t
+    individual txn_id: slot_idx_t
     individual opcode: data_msg_type_t
     individual home_nid: nid_t
-    individual dbid: index_t
+    individual dbid: slot_idx_t
     individual data: data_t
     # TODO: replace to resp
     individual share: bool
@@ -32,7 +32,7 @@ module data_msg_t = {
 module resp_msg_t = {
     individual src_id: nid_t
     individual tgt_id: nid_t
-    individual txn_id: index_t
+    individual txn_id: slot_idx_t
 }
 
 type snp_msg_type_t = { snp_read_not_share_dirty_fwd_t }
@@ -40,28 +40,37 @@ type snp_msg_type_t = { snp_read_not_share_dirty_fwd_t }
 module snp_msg_t = {
     individual src_id: nid_t
     individual tgt_id: nid_t
-    individual txn_id: index_t
+    individual txn_id: slot_idx_t
     individual opcode: snp_msg_type_t
+    individual addr: addr_t
 }
 
 module slots_t = {
-    var head: index_t
+    relation in_use(I: slot_idx_t)
 
     after init {
-        head := 0;
+        in_use(I) := false;
     }
 
-    action new returns(res: index_t) = {
-        res := head;
-        head := head + 1;
+    action new returns(res: slot_idx_t) = {
+        if some (f: slot_idx_t) ~in_use(f) {
+            res := f;
+        } else {
+            assert false;
+        }
+    }
+
+    action delete(s: slot_idx_t) = {
+        assert in_use(s);
+        in_use(s) := false;        
     }
 }
 
-instance reqmsg(I: index_t): req_msg_t
+instance reqmsg(I: slot_idx_t): req_msg_t
 instance reqmsg_slots: slots_t
-instance dmsg(I: index_t): data_msg_t
+instance dmsg(I: slot_idx_t): data_msg_t
 instance dmsg_slots: slots_t
-instance respmsg(I: index_t): resp_msg_t
+instance respmsg(I: slot_idx_t): resp_msg_t
 instance respmsg_slots: slots_t
-instance snpmsg(I: index_t): snp_msg_t
+instance snpmsg(I: slot_idx_t): snp_msg_t
 instance snpmsg_slots: slots_t

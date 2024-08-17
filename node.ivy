@@ -15,7 +15,7 @@ module txn_slot_t = {
 module channel_t(slots) = {
     var head: index_t
     var tail: index_t
-    individual map(I: index_t): index_t
+    individual map(I: index_t): slot_idx_t
 
     after init {
         head := 0;
@@ -26,13 +26,13 @@ module channel_t(slots) = {
         res := head = tail
     }
 
-    action send returns(res: index_t) = {
+    action send returns(res: slot_idx_t) = {
         map(head) := slots.new;
         res := map(head);
         head := head + 1;
     }
 
-    action recv returns (res: index_t) = {
+    action recv returns (res: slot_idx_t) = {
         res := map(tail);
         tail := tail + 1;
     }
@@ -43,7 +43,7 @@ module channel_t(slots) = {
 module node_t = {
     individual cache_state(A: addr_t): cache_state_t
     individual cache_data(A: addr_t): data_t
-    instance txns(T: index_t): txn_slot_t
+    instance txns(T: slot_idx_t): txn_slot_t
     instance txns_slots: slots_t
 
     function cs_is_u(A: addr_t): bool
