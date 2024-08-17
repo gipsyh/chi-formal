@@ -4,68 +4,63 @@ include basic
 
 type req_msg_type_t = { req_read_not_share_dirty_t, req_read_no_snp_t, req_read_unique_t }
 
-object req_msg_t = {
-    type this = struct {
-        src_id: nid_t,
-        tgt_id: nid_t,
-        txn_id: slot_id_t,
-        addr: addr_t,
-        opcode: req_msg_type_t,
-        dbid: slot_id_t,
-        return_nid: nid_t,
-        return_txn_id: slot_id_t
-    }
+module req_msg_t = {
+    individual src_id: nid_t
+    individual tgt_id: nid_t
+    individual txn_id: index_t
+    individual addr: addr_t
+    individual opcode: req_msg_type_t
+    individual dbid: index_t
+    individual return_nid: nid_t
+    individual return_txn_id: index_t
 }
 
 type data_msg_type_t = { data_todo_t }
 
-object data_msg_t = {
-    type this = struct {
-        src_id: nid_t,
-        tgt_id: nid_t,
-        txn_id: slot_id_t,
-        opcode: data_msg_type_t,
-        home_nid: nid_t,
-        dbid: slot_id_t,
-        data: data_t,
-        # TODO: replace to resp
-        share: bool
-    }
+module data_msg_t = {
+    individual src_id: nid_t
+    individual tgt_id: nid_t
+    individual txn_id: index_t
+    individual opcode: data_msg_type_t
+    individual home_nid: nid_t
+    individual dbid: index_t
+    individual data: data_t
+    # TODO: replace to resp
+    individual share: bool
 }
 
-object resp_msg_t = {
-    type this = struct {
-        src_id: nid_t,
-        tgt_id: nid_t,
-        txn_id: slot_id_t
-    }
+module resp_msg_t = {
+    individual src_id: nid_t
+    individual tgt_id: nid_t
+    individual txn_id: index_t
 }
 
-module channel_t(qobj) = {
-    type index_t
-    interpret index_t -> int
+module fifo_t = {
     var head: index_t
     var tail: index_t
-    var map(I: index_t): qobj
 
     after init {
         head := 0;
         tail := 0;
     }
 
-    action is_empty returns (res: bool) = {
-        res := head = tail;
+    action is_empty returns(res: bool) = {
+        res := head = tail
     }
 
-    action send(m: qobj) = {
-        map(head) := m;
+    action push returns(res: index_t) = {
+        res := head;
         head := head + 1;
     }
 
-    action recv returns (res: qobj) = {
-        res := map(tail);
+    action pop returns (res: index_t) = {
+        res := tail;
         tail := tail + 1;
     }
 
     invariant head >= tail
 }
+
+instance reqmsg(I: index_t): req_msg_t
+instance dmsg(I: index_t): data_msg_t
+instance respmsg(I: index_t): resp_msg_t

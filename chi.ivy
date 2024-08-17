@@ -4,32 +4,33 @@ include node
 
 individual memory(A: addr_t): data_t
 
-action rn_req_read(rn: nid_t, addr: addr_t) = {
+export action rn_req_read(rn: nid_t, addr: addr_t) = {
     require is_rn(rn);
-    var m: req_msg_t; 
-    m.txn_id := nodes(rn).new_txn_id;
-    m.addr := addr;
-    m.opcode := req_read_not_share_dirty_t;
-    nodes(rn).txn_slots(m.txn_id).addr := addr;
-    send_req_msg(rn, hn_nid, m);
+    var mid: index_t := nodes(hn_nid).req_channel.push;
+    reqmsg(mid).src_id := rn;
+    reqmsg(mid).tgt_id := hn_nid;
+    reqmsg(mid).txn_id := nodes(rn).txn_slots_fifo.push;
+    reqmsg(mid).addr := addr;
+    reqmsg(mid).opcode := req_read_not_share_dirty_t;
+    nodes(rn).txn_slots(reqmsg(mid).txn_id).addr := addr;
 }
-export rn_req_read
 
-action hn_handle_req = {
+export action hn_handle_req = {
     require ~nodes(hn_nid).req_channel.is_empty;
-    var m: req_msg_t := nodes(hn_nid).req_channel.recv;
-    if m.opcode = req_read_not_share_dirty_t {
-        if some (u_rn: nid_t) nodes(u_rn).cs_is_u(m.addr) {
+    var mid: index_t := nodes(hn_nid).req_channel.pop;
+    if reqmsg(mid).opcode = req_read_not_share_dirty_t {
+        if some (u_rn: nid_t) nodes(u_rn).cs_is_u(reqmsg(mid).addr) {
             assert false;
         } else {
-            if nodes(hn_nid).cs_is_i(m.addr) {
-                var rm: req_msg_t;
-                rm.txn_id := nodes(hn_nid).new_txn_id;
-                rm.addr := m.addr;
-                rm.opcode := req_read_no_snp_t;
-                rm.return_nid := m.src_id;
-                rm.return_txn_id := m.txn_id;
-                send_req_msg(hn_nid, sn_nid, rm);
+            if nodes(hn_nid).cs_is_i(reqmsg(mid).addr) {
+                var rmid: index_t := nodes(sn_nid).req_channel.push;
+                reqmsg(rmid).src_id := hn_nid;
+                reqmsg(rmid).tgt_id := sn_nid;
+                reqmsg(rmid).txn_id := nodes(hn_nid).txn_slots_fifo.push;
+                reqmsg(rmid).addr := reqmsg(mid).addr;
+                reqmsg(rmid).opcode := req_read_no_snp_t;
+                reqmsg(rmid).return_nid := reqmsg(mid).src_id;
+                reqmsg(rmid).return_txn_id := reqmsg(mid).txn_id;
             } else {
                 assert false;
             }
@@ -38,51 +39,50 @@ action hn_handle_req = {
         assert false;
     }
 }
-export hn_handle_req
 
-action sn_handle_req = {
+export action sn_handle_req = {
     require ~nodes(sn_nid).req_channel.is_empty;
-    var m: req_msg_t := nodes(sn_nid).req_channel.recv;
-    if m.opcode = req_read_no_snp_t {
-        local dm: data_msg_t {
-            dm.txn_id := m.return_txn_id;
-            dm.data := memory(m.addr);
-            dm.home_nid := m.src_id;
-            dm.dbid := m.txn_id;
-            dm.share := false;
-            send_data_msg(sn_nid, m.return_nid, dm);
-        }
+    var mid: index_t := nodes(sn_nid).req_channel.pop;
+    if reqmsg(mid).opcode = req_read_no_snp_t {
+        var tgt: nid_t := reqmsg(mid).return_nid;
+        var dmid: index_t := nodes(tgt).data_channel.push;
+        dmsg(dmid).src_id := sn_nid;
+        dmsg(dmid).tgt_id := tgt;
+        dmsg(dmid).txn_id := reqmsg(mid).return_txn_id;
+        dmsg(dmid).data := memory(reqmsg(mid).addr);
+        dmsg(dmid).home_nid := reqmsg(mid).src_id;
+        dmsg(dmid).dbid := reqmsg(mid).txn_id;
+        dmsg(dmid).share := false;
     } else {
         assert false;
     }
 }
-export sn_handle_req
 
-action rn_handle_data(rn: nid_t) = {
+export action rn_handle_data(rn: nid_t) = {
     require is_rn(rn);
     require ~nodes(rn).data_channel.is_empty;
-    var m: data_msg_t := nodes(rn).data_channel.recv;
-    var addr: addr_t := nodes(rn).txn_slots(m.txn_id).addr;
-    nodes(rn).cache_data(addr) := m.data;
-    if m.share {
+    var dmid: index_t := nodes(rn).data_channel.pop;
+    var addr: addr_t := nodes(rn).txn_slots(dmsg(dmid).txn_id).addr;
+    nodes(rn).cache_data(addr) := dmsg(dmid).data;
+    if dmsg(dmid).share {
         nodes(rn).cache_state(addr) := cs_sc;
     } else {
         nodes(rn).cache_state(addr) := cs_uc;
     }
-    var rspm: resp_msg_t;
-    rspm.txn_id := m.dbid;
-    send_resp_msg(rn, m.home_nid, rspm);
+    var tgt: nid_t := dmsg(dmid).home_nid;
+    var rmid: index_t := nodes(tgt).resp_channel.push;
+    respmsg(rmid).src_id := rn;
+    respmsg(rmid).tgt_id := tgt;
+    respmsg(rmid).txn_id := dmsg(dmid).dbid;
 }
-export rn_handle_data
 
-action hn_handle_resp = {
+export action hn_handle_resp = {
     require ~nodes(hn_nid).resp_channel.is_empty;
     var m: resp_msg_t := nodes(hn_nid).resp_channel.recv;
 }
-export hn_handle_resp
 
 invariant (nodes(X).cs_is_u(A) & nodes(Y).cs_is_u(A)) -> X = Y
 # invariant nodes(X).cs_is_c(A) -> (memory(A) = nodes(X).cache_data(A))
 
 attribute method = bmc[10]
-# attribute method = ic
+# # attribute method = ic

@@ -3,9 +3,9 @@
 type addr_t
 type data_t
 type nid_t
-type slot_id_t
 
-interpret slot_id_t -> int
+type index_t
+interpret index_t -> int
 
 type cache_state_t = {cs_i, cs_uc, cs_ud, cs_sc}
 

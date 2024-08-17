@@ -1,0 +1,19 @@
+#lang ivy1.7
+
+module ttt = {
+    individual a: bool
+}
+
+type x_t
+
+interpret x_t -> int
+
+instance xx(X: x_t): ttt
+
+after init {
+    xx(0).a := false;
+    xx(1).a := true;
+}
+
+invariant ~xx(0).a
+invariant xx(1).a
