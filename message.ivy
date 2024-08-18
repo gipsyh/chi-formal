@@ -24,6 +24,7 @@ module msg_t = {
     individual data: data_t
     # TODO: replace to resp
     individual share: bool
+    individual fwd_nid: nid_t
 
     after init {
         in_use := false
@@ -32,9 +33,9 @@ module msg_t = {
 
 instance msg(I: midx_t): msg_t
 
-action msg_new returns(r: midx_t) = {
-    assume ~msg(r).in_use;
-    msg(r).in_use := true;
+action msg_new returns(msg_r: midx_t) = {
+    assume ~msg(msg_r).in_use;
+    msg(msg_r).in_use := true;
 }
 
 action msg_free(f: midx_t) = {

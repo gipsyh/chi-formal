@@ -39,7 +39,7 @@ export action hn_handle_req = {
 }
 
 export action hn_handle_req_in_txn(txn: txn_idx_t) = {
-    require nodes(hn_nid).txns(txn).in_use & ~nodes(hn_nid).txns(txn).wait;
+    require nodes(hn_nid).txns(txn).in_use & ~nodes(hn_nid).txns(txn).wait & ~nodes(hn_nid).txns(txn).handled;
     var mid: midx_t := nodes(hn_nid).txns(txn).msg;
     var addr: addr_t := msg(mid).addr;
     if msg(mid).opcode = req_read_not_share_dirty_t {
@@ -49,7 +49,9 @@ export action hn_handle_req_in_txn(txn: txn_idx_t) = {
             msg(smid).tgt_id := u_rn;
             msg(smid).txn_id := txn;
             msg(smid).addr := addr;
+            msg(smid).fwd_nid := msg(mid).src_id;
             msg(smid).opcode := snp_read_not_share_dirty_fwd_t;
+            msg(smid).return_txn_id := msg(mid).txn_id;
         } else {
             if nodes(hn_nid).cs_is_i(addr) {
                 var rmid: midx_t := nodes(sn_nid).req_channel.send;
@@ -67,6 +69,7 @@ export action hn_handle_req_in_txn(txn: txn_idx_t) = {
     } else {
         assert false;
     }
+    nodes(hn_nid).txns_hanlded(txn);
 }
 
 export action sn_handle_req = {
@@ -116,8 +119,20 @@ export action hn_handle_resp = {
 export action rn_handle_snp(rn: nid_t) = {
     require is_rn(rn);
     var smid: midx_t := nodes(rn).snp_channel.recv;
-    assert nodes(rn).cs_is_u(msg(smid).addr);
-
+    var addr: addr_t := msg(smid).addr;
+    if msg(smid).opcode = snp_read_not_share_dirty_fwd_t {
+        assert nodes(rn).cs_is_u(addr);
+        var tgt: nid_t := msg(smid).fwd_nid;
+        var dmid: midx_t := nodes(tgt).data_channel.send;
+        msg(dmid).src_id := rn;
+        msg(dmid).tgt_id := tgt;
+        msg(dmid).txn_id := msg(smid).return_txn_id;
+        msg(dmid).data := nodes(rn).cache_data(addr);
+        msg(dmid).home_nid := msg(smid).src_id;
+        msg(dmid).dbid := msg(smid).txn_id;
+        msg(dmid).share := true;
+        nodes(rn).cache_state(addr) := cs_sc;
+    }
 }
 
 invariant (nodes(X).cs_is_u(A) & nodes(Y).cs_is_u(A)) -> X = Y

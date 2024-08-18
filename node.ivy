@@ -8,6 +8,7 @@ module txn_slot_t = {
     individual addr: addr_t
     individual wait: bool
     individual wake: txn_idx_t
+    individual handled: bool
     individual msg: midx_t
 
     after init {
@@ -16,6 +17,7 @@ module txn_slot_t = {
 
     action default = {
         wait := true;
+        handled := false;
         wake := txn_idx_null;
     }
 }
@@ -63,10 +65,10 @@ module node_t = {
 
     instance txns(I: txn_idx_t): txn_slot_t
 
-    action txn_new returns(r: txn_idx_t) = {
-        assume r~= txn_idx_null & ~txns(r).in_use;
-        txns(r).default;
-        txns(r).in_use := true;
+    action txn_new returns(txn_r: txn_idx_t) = {
+        assume txn_r~= txn_idx_null & ~txns(txn_r).in_use;
+        txns(txn_r).default;
+        txns(txn_r).in_use := true;
     }
 
     action txn_free (f: txn_idx_t) = {
@@ -95,11 +97,14 @@ module node_t = {
         txns(txn).wait := false;
     }
 
+    action txns_hanlded(txn: txn_idx_t) = {
+        txns(txn).wait := true;
+    }
+
     action txns_finished(txn: txn_idx_t) = {
         var wake: txn_idx_t := txns(txn).wake;
         assert txns(txn).in_use;
         if wake ~= txn_idx_null {
-            assert txns(wake).wait;
             txns_unset_wait(wake);
         } else {
             var addr: addr_t := msg(txns(txn).msg).addr;
@@ -108,17 +113,6 @@ module node_t = {
         }
         txns(txn).in_use := false;
     }
-
-
-    # action addr_unset_wait(addr: addr_t, txn: txn_idx_t) = {
-    #     var ptxn := addr_wait_list(addr);
-    #     if ptxn ~= txn_idx_null {
-    #         txns(ptxn).has_wake := true;
-    #         txns(ptxn).wake := txn;
-    #     }
-    #     txns(txn).wait := true;
-    #     addr_wait_list(addr) := txn;
-    # }
 }
 
 instance nodes(N: nid_t): node_t
