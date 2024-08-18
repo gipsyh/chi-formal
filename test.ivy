@@ -1,4 +1,4 @@
-#lang ivy1.7
+#lang ivy1.8
 
 type idx_t
 
@@ -8,26 +8,20 @@ after init {
     in_use(I) := false;
 }
 
-export action new returns(res: idx_t) = {
+action new(res: idx_t) = {
+    require ~in_use(res);
+    in_use(res) := true;
+}
+
+export action ttt(res: idx_t) = {
     # require ~in_use(res);
     # in_use(res) := true;
-    if some (f: idx_t) ~in_use(f) {
-        in_use(f) := true;
-        res := f;
-    } else {
-        assert false;
-    }
+    call new(res);
 }
 
 export action delete(res: idx_t) = {
     require in_use(res);
     in_use(res) := false;
-    # if some (f: idx_t) ~in_use(f) {
-    #     in_use(f) := true;
-    #     res := f;
-    # } else {
-    #     assert false;
-    # }
 }
 
 attribute method = bmc[10]

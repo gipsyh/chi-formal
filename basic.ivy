@@ -15,11 +15,6 @@ individual hn_nid: nid_t
 individual sn_nid: nid_t
 axiom hn_nid ~= sn_nid
 
-function is_rn(N: nid_t): bool
-definition is_rn(N: nid_t) = N ~= hn_nid & N ~= sn_nid
-
-function is_hn(N: nid_t): bool
-definition is_hn(N: nid_t) = N = hn_nid
-
-function is_sn(N: nid_t): bool
-definition is_sn(N: nid_t) = N = sn_nid
+derived is_rn(N: nid_t) = N ~= hn_nid & N ~= sn_nid
+derived is_hn(N: nid_t) = N = hn_nid
+derived is_sn(N: nid_t) = N = sn_nid

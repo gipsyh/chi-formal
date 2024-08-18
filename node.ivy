@@ -8,6 +8,7 @@ module txn_slot_t = {
     individual addr: addr_t
     individual wait: bool
     individual wake: idx_t
+    individual msg: idx_t
 
     after init {
         valid := false;
@@ -24,9 +25,7 @@ module channel_t(slots) = {
         tail := 1;
     }
 
-    action is_empty returns(res: bool) = {
-        res := head = tail
-    }
+    derived is_empty = (head <= tail)
 
     action send returns(res: idx_t) = {
         map(head) := slots.new;
@@ -35,11 +34,10 @@ module channel_t(slots) = {
     }
 
     action recv returns (res: idx_t) = {
+        assert ~is_empty;
         res := map(tail);
         tail := tail + 1;
     }
-
-    invariant head >= tail
 }
 
 module node_t = {
@@ -47,17 +45,10 @@ module node_t = {
     individual cache_data(A: addr_t): data_t
     instance txns: slots_t(txn_slot_t)
 
-    function cs_is_u(A: addr_t): bool
-    definition cs_is_u(A: addr_t) = cache_state(A) = cs_ud | cache_state(A) = cs_uc
-    
-    function cs_is_c(A: addr_t): bool
-    definition cs_is_c(A: addr_t) = cache_state(A) = cs_sc | cache_state(A) = cs_uc
-
-    function cs_is_d(A: addr_t): bool
-    definition cs_is_d(A: addr_t) = cache_state(A) = cs_ud
-
-    function cs_is_i(A: addr_t): bool
-    definition cs_is_i(A: addr_t) = cache_state(A) = cs_i
+    derived cs_is_u(A: addr_t) = cache_state(A) = cs_ud | cache_state(A) = cs_uc
+    derived cs_is_c(A: addr_t) = cache_state(A) = cs_sc | cache_state(A) = cs_uc
+    derived cs_is_d(A: addr_t) = cache_state(A) = cs_ud
+    derived cs_is_i(A: addr_t) = cache_state(A) = cs_i
 
     instance req_channel: channel_t(reqmsg)
     instance data_channel: channel_t(dmsg)
