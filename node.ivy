@@ -50,10 +50,10 @@ module node_t = {
     derived cs_is_d(A: addr_t) = cache_state(A) = cs_ud
     derived cs_is_i(A: addr_t) = cache_state(A) = cs_i
 
-    instance req_channel: channel_t(reqmsg)
-    instance data_channel: channel_t(dmsg)
-    instance resp_channel: channel_t(respmsg)
-    instance snp_channel: channel_t(snpmsg)
+    instance req_channel: channel_t(msg)
+    instance data_channel: channel_t(msg)
+    instance resp_channel: channel_t(msg)
+    instance snp_channel: channel_t(msg)
 
     after init {
         cache_state(A) := cs_i;

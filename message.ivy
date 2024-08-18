@@ -2,47 +2,26 @@
 
 include basic
 
-type req_msg_type_t = { req_read_not_share_dirty_t, req_read_no_snp_t, req_read_unique_t }
+type msg_type_t = { req_read_not_share_dirty_t,
+                        req_read_no_snp_t,
+                        req_read_unique_t,
+                        data_todo_t,
+                        snp_read_not_share_dirty_fwd_t
+                    }
 
-module req_msg_t = {
+module msg_t = {
     individual src_id: nid_t
     individual tgt_id: nid_t
     individual txn_id: idx_t
     individual addr: addr_t
-    individual opcode: req_msg_type_t
+    individual opcode: msg_type_t
     individual dbid: idx_t
     individual return_nid: nid_t
     individual return_txn_id: idx_t
-}
-
-type data_msg_type_t = { data_todo_t }
-
-module data_msg_t = {
-    individual src_id: nid_t
-    individual tgt_id: nid_t
-    individual txn_id: idx_t
-    individual opcode: data_msg_type_t
     individual home_nid: nid_t
-    individual dbid: idx_t
     individual data: data_t
     # TODO: replace to resp
     individual share: bool
-}
-
-module resp_msg_t = {
-    individual src_id: nid_t
-    individual tgt_id: nid_t
-    individual txn_id: idx_t
-}
-
-type snp_msg_type_t = { snp_read_not_share_dirty_fwd_t }
-
-module snp_msg_t = {
-    individual src_id: nid_t
-    individual tgt_id: nid_t
-    individual txn_id: idx_t
-    individual opcode: snp_msg_type_t
-    individual addr: addr_t
 }
 
 module slots_t(obj) = {
@@ -64,7 +43,4 @@ module slots_t(obj) = {
     }
 }
 
-instance reqmsg: slots_t(req_msg_t)
-instance dmsg: slots_t(data_msg_t)
-instance respmsg: slots_t(resp_msg_t)
-instance snpmsg: slots_t(snp_msg_t)
+instance msg: slots_t(msg_t)
