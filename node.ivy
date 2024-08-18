@@ -6,6 +6,8 @@ include message
 module txn_slot_t = {
     individual valid: bool
     individual addr: addr_t
+    individual wait: bool
+    individual wake: idx_t
 
     after init {
         valid := false;
@@ -43,8 +45,7 @@ module channel_t(slots) = {
 module node_t = {
     individual cache_state(A: addr_t): cache_state_t
     individual cache_data(A: addr_t): data_t
-    instance txns(T: idx_t): txn_slot_t
-    instance txns_slots: slots_t
+    instance txns: slots_t(txn_slot_t)
 
     function cs_is_u(A: addr_t): bool
     definition cs_is_u(A: addr_t) = cache_state(A) = cs_ud | cache_state(A) = cs_uc
@@ -58,10 +59,10 @@ module node_t = {
     function cs_is_i(A: addr_t): bool
     definition cs_is_i(A: addr_t) = cache_state(A) = cs_i
 
-    instance req_channel: channel_t(reqmsg_slots)
-    instance data_channel: channel_t(dmsg_slots)
-    instance resp_channel: channel_t(respmsg_slots)
-    instance snp_channel: channel_t(snpmsg_slots)
+    instance req_channel: channel_t(reqmsg)
+    instance data_channel: channel_t(dmsg)
+    instance resp_channel: channel_t(respmsg)
+    instance snp_channel: channel_t(snpmsg)
 
     after init {
         cache_state(A) := cs_i;

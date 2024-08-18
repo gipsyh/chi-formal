@@ -45,8 +45,9 @@ module snp_msg_t = {
     individual addr: addr_t
 }
 
-module slots_t = {
+module slots_t(obj) = {
     var p: idx_t
+    instance m(I: idx_t): obj 
 
     after init {
         p := 1
@@ -58,11 +59,7 @@ module slots_t = {
     }
 }
 
-instance reqmsg(I: idx_t): req_msg_t
-instance reqmsg_slots: slots_t
-instance dmsg(I: idx_t): data_msg_t
-instance dmsg_slots: slots_t
-instance respmsg(I: idx_t): resp_msg_t
-instance respmsg_slots: slots_t
-instance snpmsg(I: idx_t): snp_msg_t
-instance snpmsg_slots: slots_t
+instance reqmsg: slots_t(req_msg_t)
+instance dmsg: slots_t(data_msg_t)
+instance respmsg: slots_t(resp_msg_t)
+instance snpmsg: slots_t(snp_msg_t)
