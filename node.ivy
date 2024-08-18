@@ -18,7 +18,7 @@ module txn_slot_t = {
 module channel_t(slots) = {
     var head: nat_idx_t
     var tail: nat_idx_t
-    individual map(I: nat_idx_t): idx_t
+    individual map(I: nat_idx_t): midx_t
 
     after init {
         head := 1;
@@ -27,13 +27,13 @@ module channel_t(slots) = {
 
     derived is_empty = (head <= tail)
 
-    action send returns(res: idx_t) = {
+    action send returns(res: midx_t) = {
         map(head) := slots.new;
         res := map(head);
         head := head + 1;
     }
 
-    action recv returns (res: idx_t) = {
+    action recv returns (res: midx_t) = {
         assert ~is_empty;
         res := map(tail);
         tail := tail + 1;
@@ -43,7 +43,7 @@ module channel_t(slots) = {
 module node_t = {
     individual cache_state(A: addr_t): cache_state_t
     individual cache_data(A: addr_t): data_t
-    instance txns: slots_t(txn_slot_t)
+    instance txns: slots_t(txn_slot_t, txn_idx_t)
 
     derived cs_is_u(A: addr_t) = cache_state(A) = cs_ud | cache_state(A) = cs_uc
     derived cs_is_c(A: addr_t) = cache_state(A) = cs_sc | cache_state(A) = cs_uc

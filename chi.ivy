@@ -6,7 +6,7 @@ individual memory(A: addr_t): data_t
 
 export action rn_req_read_not_share_dirty(rn: nid_t, addr: addr_t) = {
     require is_rn(rn) & nodes(rn).cs_is_i(addr);
-    var mid: idx_t := nodes(hn_nid).req_channel.send;
+    var mid: midx_t := nodes(hn_nid).req_channel.send;
     msg.m(mid).src_id := rn;
     msg.m(mid).tgt_id := hn_nid;
     msg.m(mid).txn_id := nodes(rn).txns.new;
@@ -17,7 +17,7 @@ export action rn_req_read_not_share_dirty(rn: nid_t, addr: addr_t) = {
 
 # export action rn_req_read_unique(rn: nid_t, addr: addr_t) = {
 #     require is_rn(rn) & (nodes(rn).cs_is_i(addr) | nodes(rn).cache_state(addr) = cs_sc);
-#     var mid: idx_t := nodes(hn_nid).req_channel.push;
+#     var mid: midx_t := nodes(hn_nid).req_channel.push;
 #     msg.m(mid).src_id := rn;
 #     msg.m(mid).tgt_id := hn_nid;
 #     msg.m(mid).txn_id := nodes(rn).txn_slots_fifo.push;
@@ -28,10 +28,10 @@ export action rn_req_read_not_share_dirty(rn: nid_t, addr: addr_t) = {
 
 export action hn_handle_req = {
     require ~nodes(hn_nid).req_channel.is_empty;
-    var mid: idx_t := nodes(hn_nid).req_channel.recv;
+    var mid: midx_t := nodes(hn_nid).req_channel.recv;
     if msg.m(mid).opcode = req_read_not_share_dirty_t {
         if some (u_rn: nid_t) is_rn(u_rn) & nodes(u_rn).cs_is_u(msg.m(mid).addr) {
-            var smid: idx_t := nodes(u_rn).snp_channel.send;
+            var smid: midx_t := nodes(u_rn).snp_channel.send;
             msg.m(smid).src_id := hn_nid;
             msg.m(smid).tgt_id := u_rn;
             msg.m(smid).txn_id := nodes(hn_nid).txns.new;
@@ -39,7 +39,7 @@ export action hn_handle_req = {
             msg.m(smid).opcode := snp_read_not_share_dirty_fwd_t;
         } else {
             if nodes(hn_nid).cs_is_i(msg.m(mid).addr) {
-                var rmid: idx_t := nodes(sn_nid).req_channel.send;
+                var rmid: midx_t := nodes(sn_nid).req_channel.send;
                 msg.m(rmid).src_id := hn_nid;
                 msg.m(rmid).tgt_id := sn_nid;
                 msg.m(rmid).txn_id := nodes(hn_nid).txns.new;
@@ -59,10 +59,10 @@ export action hn_handle_req = {
 
 export action sn_handle_req = {
     require ~nodes(sn_nid).req_channel.is_empty;
-    var mid: idx_t := nodes(sn_nid).req_channel.recv;
+    var mid: midx_t := nodes(sn_nid).req_channel.recv;
     if msg.m(mid).opcode = req_read_no_snp_t {
         var tgt: nid_t := msg.m(mid).return_nid;
-        var dmid: idx_t := nodes(tgt).data_channel.send;
+        var dmid: midx_t := nodes(tgt).data_channel.send;
         msg.m(dmid).src_id := sn_nid;
         msg.m(dmid).tgt_id := tgt;
         msg.m(dmid).txn_id := msg.m(mid).return_txn_id;
@@ -79,7 +79,7 @@ export action sn_handle_req = {
 export action rn_handle_data(rn: nid_t) = {
     require is_rn(rn);
     require ~nodes(rn).data_channel.is_empty;
-    var dmid: idx_t := nodes(rn).data_channel.recv;
+    var dmid: midx_t := nodes(rn).data_channel.recv;
     var addr: addr_t := nodes(rn).txns.m(msg.m(dmid).txn_id).addr;
     nodes(rn).cache_data(addr) := msg.m(dmid).data;
     if msg.m(dmid).share {
@@ -88,7 +88,7 @@ export action rn_handle_data(rn: nid_t) = {
         nodes(rn).cache_state(addr) := cs_uc;
     }
     var tgt: nid_t := msg.m(dmid).home_nid;
-    var rspmid: idx_t := nodes(tgt).resp_channel.send;
+    var rspmid: midx_t := nodes(tgt).resp_channel.send;
     msg.m(rspmid).src_id := rn;
     msg.m(rspmid).tgt_id := tgt;
     msg.m(rspmid).txn_id := msg.m(dmid).dbid;
@@ -97,14 +97,14 @@ export action rn_handle_data(rn: nid_t) = {
 
 export action hn_handle_resp = {
     require ~nodes(hn_nid).resp_channel.is_empty;
-    var rmid: idx_t := nodes(hn_nid).resp_channel.recv;
+    var rmid: midx_t := nodes(hn_nid).resp_channel.recv;
     msg.free(rmid);
 }
 
 export action rn_handle_snp(rn: nid_t) = {
     require is_rn(rn);
     require ~nodes(rn).snp_channel.is_empty;
-    var smid: idx_t := nodes(rn).snp_channel.recv;
+    var smid: midx_t := nodes(rn).snp_channel.recv;
     assert nodes(rn).cs_is_u(msg.m(smid).addr);
 
 }
