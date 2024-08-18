@@ -54,6 +54,7 @@ export action hn_handle_req = {
     } else {
         assert false;
     }
+    reqmsg.free(mid);
 }
 
 export action sn_handle_req = {
@@ -72,6 +73,7 @@ export action sn_handle_req = {
     } else {
         assert false;
     }
+    reqmsg.free(mid)
 }
 
 export action rn_handle_data(rn: nid_t) = {
@@ -90,11 +92,13 @@ export action rn_handle_data(rn: nid_t) = {
     respmsg.m(rmid).src_id := rn;
     respmsg.m(rmid).tgt_id := tgt;
     respmsg.m(rmid).txn_id := dmsg.m(dmid).dbid;
+    dmsg.free(dmid);
 }
 
 export action hn_handle_resp = {
     require ~nodes(hn_nid).resp_channel.is_empty;
     var rmid: idx_t := nodes(hn_nid).resp_channel.recv;
+    respmsg.free(rmid);
 }
 
 export action rn_handle_snp(rn: nid_t) = {
