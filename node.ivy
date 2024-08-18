@@ -7,18 +7,16 @@ module txn_slot_t = {
     individual in_use: bool
     individual addr: addr_t
     individual wait: bool
-    individual ready: bool
-    individual has_wake: bool
-    individual wake: idx_t
-    individual msg: idx_t
+    individual wake: txn_idx_t
+    individual msg: midx_t
 
     after init {
         in_use := false;
     }
 
     action default = {
-        wait := false;
-        has_wake := false;
+        wait := true;
+        wake := txn_idx_null;
     }
 }
 
@@ -76,13 +74,51 @@ module node_t = {
         txns(f).in_use := false;
     }
 
-    individual addr_wait(A: addr_t): txn_idx_t
+    individual addr_wait_list(A: addr_t): txn_idx_t
 
-    derived addr_is_wait(A: addr_t) = addr_wait(A) ~= txn_idx_null
-    
     after init {
-        addr_wait(A) := txn_idx_null;
+        addr_wait_list(A) := txn_idx_null;
     }
+
+    derived addr_is_wait(A: addr_t) = addr_wait_list(A) ~= txn_idx_null
+    
+    action txn_set_wait(addr: addr_t, txn: txn_idx_t) = {
+        var ptxn := addr_wait_list(addr);
+        if ptxn ~= txn_idx_null {
+            txns(ptxn).wake := txn;
+        }
+        txns(txn).wait := true;
+        addr_wait_list(addr) := txn;
+    }
+
+    action txns_unset_wait(txn: txn_idx_t) = {
+        txns(txn).wait := false;
+    }
+
+    action txns_finished(txn: txn_idx_t) = {
+        var wake: txn_idx_t := txns(txn).wake;
+        assert txns(txn).in_use;
+        if wake ~= txn_idx_null {
+            assert txns(wake).wait;
+            txns_unset_wait(wake);
+        } else {
+            var addr: addr_t := msg(txns(txn).msg).addr;
+            assert addr_wait_list(addr) = txn;
+            addr_wait_list(addr) := txn_idx_null;
+        }
+        txns(txn).in_use := false;
+    }
+
+
+    # action addr_unset_wait(addr: addr_t, txn: txn_idx_t) = {
+    #     var ptxn := addr_wait_list(addr);
+    #     if ptxn ~= txn_idx_null {
+    #         txns(ptxn).has_wake := true;
+    #         txns(ptxn).wake := txn;
+    #     }
+    #     txns(txn).wait := true;
+    #     addr_wait_list(addr) := txn;
+    # }
 }
 
 instance nodes(N: nid_t): node_t

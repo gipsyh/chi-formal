@@ -29,37 +29,43 @@ export action rn_req_read_not_share_dirty(rn: nid_t, addr: addr_t) = {
 export action hn_handle_req = {
     var mid: midx_t := nodes(hn_nid).req_channel.recv;
     var addr: addr_t := msg(mid).addr;
-    if nodes(hn_nid).addr_is_wait(addr) {
-        assert false;
-    } else {
-        var txn: txn_idx_t := nodes(hn_nid).txn_new;
-        nodes(hn_nid).addr_wait(addr) := txn;
-        if msg(mid).opcode = req_read_not_share_dirty_t {
-            if some (u_rn: nid_t) is_rn(u_rn) & nodes(u_rn).cs_is_u(addr) {
-                var smid: midx_t := nodes(u_rn).snp_channel.send;
-                msg(smid).src_id := hn_nid;
-                msg(smid).tgt_id := u_rn;
-                msg(smid).txn_id := txn;
-                msg(smid).addr := addr;
-                msg(smid).opcode := snp_read_not_share_dirty_fwd_t;
-            } else {
-                if nodes(hn_nid).cs_is_i(addr) {
-                    var rmid: midx_t := nodes(sn_nid).req_channel.send;
-                    msg(rmid).src_id := hn_nid;
-                    msg(rmid).tgt_id := sn_nid;
-                    msg(rmid).txn_id := txn;
-                    msg(rmid).addr := addr;
-                    msg(rmid).opcode := req_read_no_snp_t;
-                    msg(rmid).return_nid := msg(mid).src_id;
-                    msg(rmid).return_txn_id := msg(mid).txn_id;
-                } else {
-                    assert false;
-                }
-            }
+    var txn: txn_idx_t := nodes(hn_nid).txn_new;
+    nodes(hn_nid).txns(txn).msg := mid;
+    var should_wait: bool := nodes(hn_nid).addr_is_wait(addr);
+    nodes(hn_nid).txn_set_wait(addr, txn);
+    if ~should_wait {
+        nodes(hn_nid).txns_unset_wait(txn);
+    }
+}
+
+export action hn_handle_req_in_txn(txn: txn_idx_t) = {
+    require nodes(hn_nid).txns(txn).in_use & ~nodes(hn_nid).txns(txn).wait;
+    var mid: midx_t := nodes(hn_nid).txns(txn).msg;
+    var addr: addr_t := msg(mid).addr;
+    if msg(mid).opcode = req_read_not_share_dirty_t {
+        if some (u_rn: nid_t) is_rn(u_rn) & nodes(u_rn).cs_is_u(addr) {
+            var smid: midx_t := nodes(u_rn).snp_channel.send;
+            msg(smid).src_id := hn_nid;
+            msg(smid).tgt_id := u_rn;
+            msg(smid).txn_id := txn;
+            msg(smid).addr := addr;
+            msg(smid).opcode := snp_read_not_share_dirty_fwd_t;
         } else {
-            assert false;
+            if nodes(hn_nid).cs_is_i(addr) {
+                var rmid: midx_t := nodes(sn_nid).req_channel.send;
+                msg(rmid).src_id := hn_nid;
+                msg(rmid).tgt_id := sn_nid;
+                msg(rmid).txn_id := txn;
+                msg(rmid).addr := addr;
+                msg(rmid).opcode := req_read_no_snp_t;
+                msg(rmid).return_nid := msg(mid).src_id;
+                msg(rmid).return_txn_id := msg(mid).txn_id;
+            } else {
+                assert false;
+            }
         }
-        msg_free(mid);
+    } else {
+        assert false;
     }
 }
 
@@ -101,6 +107,9 @@ export action rn_handle_data(rn: nid_t) = {
 
 export action hn_handle_resp = {
     var rmid: midx_t := nodes(hn_nid).resp_channel.recv;
+    var txnid: txn_idx_t := msg(rmid).txn_id;
+    nodes(hn_nid).txns_finished(txnid);
+    msg_free(nodes(hn_nid).txns(txnid).msg);
     msg_free(rmid);
 }
 
