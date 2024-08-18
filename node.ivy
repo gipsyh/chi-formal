@@ -21,11 +21,9 @@ module channel_t(slots) = {
     individual map(I: nat_idx_t): midx_t
 
     after init {
-        head := 1;
-        tail := 1;
+        head := 0;
+        tail := 0;
     }
-
-    derived is_empty = (head <= tail)
 
     action send returns(res: midx_t) = {
         map(head) := slots.new;
@@ -34,7 +32,7 @@ module channel_t(slots) = {
     }
 
     action recv returns (res: midx_t) = {
-        assert ~is_empty;
+        assume head > tail;
         res := map(tail);
         tail := tail + 1;
     }

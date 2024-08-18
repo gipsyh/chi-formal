@@ -27,7 +27,6 @@ export action rn_req_read_not_share_dirty(rn: nid_t, addr: addr_t) = {
 # }
 
 export action hn_handle_req = {
-    require ~nodes(hn_nid).req_channel.is_empty;
     var mid: midx_t := nodes(hn_nid).req_channel.recv;
     if msg.m(mid).opcode = req_read_not_share_dirty_t {
         if some (u_rn: nid_t) is_rn(u_rn) & nodes(u_rn).cs_is_u(msg.m(mid).addr) {
@@ -58,7 +57,6 @@ export action hn_handle_req = {
 }
 
 export action sn_handle_req = {
-    require ~nodes(sn_nid).req_channel.is_empty;
     var mid: midx_t := nodes(sn_nid).req_channel.recv;
     if msg.m(mid).opcode = req_read_no_snp_t {
         var tgt: nid_t := msg.m(mid).return_nid;
@@ -78,7 +76,6 @@ export action sn_handle_req = {
 
 export action rn_handle_data(rn: nid_t) = {
     require is_rn(rn);
-    require ~nodes(rn).data_channel.is_empty;
     var dmid: midx_t := nodes(rn).data_channel.recv;
     var addr: addr_t := nodes(rn).txns.m(msg.m(dmid).txn_id).addr;
     nodes(rn).cache_data(addr) := msg.m(dmid).data;
@@ -96,14 +93,12 @@ export action rn_handle_data(rn: nid_t) = {
 }
 
 export action hn_handle_resp = {
-    require ~nodes(hn_nid).resp_channel.is_empty;
     var rmid: midx_t := nodes(hn_nid).resp_channel.recv;
     msg.free(rmid);
 }
 
 export action rn_handle_snp(rn: nid_t) = {
     require is_rn(rn);
-    require ~nodes(rn).snp_channel.is_empty;
     var smid: midx_t := nodes(rn).snp_channel.recv;
     assert nodes(rn).cs_is_u(msg.m(smid).addr);
 
