@@ -10,6 +10,8 @@ type msg_type_t = { req_read_not_share_dirty_t,
                     }
 
 module msg_t = {
+    individual in_use: bool
+
     individual src_id: nid_t
     individual tgt_id: nid_t
     individual txn_id: txn_idx_t
@@ -22,25 +24,20 @@ module msg_t = {
     individual data: data_t
     # TODO: replace to resp
     individual share: bool
-}
-
-module slots_t(obj, idx) = {
-    relation in_use(I: idx)
-    instance m(I: idx): obj 
 
     after init {
-        in_use(I) := false
-    }
-
-    action new returns(r: idx) = {
-        assume ~in_use(r);
-        in_use(r) := true;
-    }
-
-    action free(f: idx) = {
-        assert in_use(f);
-        in_use(f) := false;
+        in_use := false
     }
 }
 
-instance msg: slots_t(msg_t, midx_t)
+instance msg(I: midx_t): msg_t
+
+action msg_new returns(r: midx_t) = {
+    assume ~msg(r).in_use;
+    msg(r).in_use := true;
+}
+
+action msg_free(f: midx_t) = {
+    assert msg(f).in_use;
+    msg(f).in_use := false;
+}

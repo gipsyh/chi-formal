@@ -4,18 +4,19 @@ include basic
 include message
 
 module txn_slot_t = {
-    individual valid: bool
+    individual in_use: bool
     individual addr: addr_t
     individual wait: bool
+    individual has_wake: bool
     individual wake: idx_t
     individual msg: idx_t
 
     after init {
-        valid := false;
+        in_use := false;
     }
 }
 
-module channel_t(slots) = {
+module channel_t = {
     var head: nat_idx_t
     var tail: nat_idx_t
     individual map(I: nat_idx_t): midx_t
@@ -26,7 +27,7 @@ module channel_t(slots) = {
     }
 
     action send returns(res: midx_t) = {
-        map(head) := slots.new;
+        map(head) := msg_new;
         res := map(head);
         head := head + 1;
     }
@@ -41,20 +42,30 @@ module channel_t(slots) = {
 module node_t = {
     individual cache_state(A: addr_t): cache_state_t
     individual cache_data(A: addr_t): data_t
-    instance txns: slots_t(txn_slot_t, txn_idx_t)
+    instance txns(I: txn_idx_t): txn_slot_t
 
     derived cs_is_u(A: addr_t) = cache_state(A) = cs_ud | cache_state(A) = cs_uc
     derived cs_is_c(A: addr_t) = cache_state(A) = cs_sc | cache_state(A) = cs_uc
     derived cs_is_d(A: addr_t) = cache_state(A) = cs_ud
     derived cs_is_i(A: addr_t) = cache_state(A) = cs_i
 
-    instance req_channel: channel_t(msg)
-    instance data_channel: channel_t(msg)
-    instance resp_channel: channel_t(msg)
-    instance snp_channel: channel_t(msg)
+    instance req_channel: channel_t
+    instance data_channel: channel_t
+    instance resp_channel: channel_t
+    instance snp_channel: channel_t
 
     after init {
         cache_state(A) := cs_i;
+    }
+
+    action txn_new returns(r: txn_idx_t) = {
+        assume ~txns(r).in_use;
+        txns(r).in_use := true;
+    }
+
+    action txn_free (f: txn_idx_t) = {
+        assert txns(f).in_use;
+        txns(f).in_use := false;
     }
 }
 
