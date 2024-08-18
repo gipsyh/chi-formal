@@ -139,4 +139,3 @@ invariant (nodes(X).cs_is_u(A) & nodes(Y).cs_is_u(A)) -> X = Y
 # invariant nodes(X).cs_is_c(A) -> (memory(A) = nodes(X).cache_data(A))
 
 attribute method = bmc[10]
-# # attribute method = ic
