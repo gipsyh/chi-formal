@@ -9,9 +9,6 @@ type midx_t
 type txn_idx_t
 individual txn_idx_null: txn_idx_t
 
-type nat_idx_t
-interpret nat_idx_t -> nat
-
 type cache_state_t = {cs_i, cs_uc, cs_ud, cs_sc}
 
 individual hn_nid: nid_t

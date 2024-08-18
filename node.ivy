@@ -23,25 +23,22 @@ module txn_slot_t = {
 }
 
 module channel_t = {
-    var head: nat_idx_t
-    var tail: nat_idx_t
-    individual map(I: nat_idx_t): midx_t
+    relation in_channel(M: midx_t)
 
     after init {
-        head := 0;
-        tail := 0;
+        in_channel(M) := false;
     }
 
-    action send returns(res: midx_t) = {
-        map(head) := msg_new;
-        res := map(head);
-        head := head + 1;
+    action send returns(m: midx_t) = {
+        m := msg_new;
+        assert ~in_channel(m);
+        in_channel(m) := true;
     }
 
-    action recv returns (res: midx_t) = {
-        assume head > tail;
-        res := map(tail);
-        tail := tail + 1;
+    action recv returns (m: midx_t) = {
+        assume in_channel(m);
+        assume in_channel(X) -> (msg_le(m, X) -> X = m);
+        in_channel(m) := false;
     }
 }
 
