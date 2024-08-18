@@ -7,6 +7,7 @@ type nid_t
 type idx_t
 type midx_t
 type txn_idx_t
+individual txn_idx_null: txn_idx_t
 
 type nat_idx_t
 interpret nat_idx_t -> nat

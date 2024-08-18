@@ -7,12 +7,18 @@ module txn_slot_t = {
     individual in_use: bool
     individual addr: addr_t
     individual wait: bool
+    individual ready: bool
     individual has_wake: bool
     individual wake: idx_t
     individual msg: idx_t
 
     after init {
         in_use := false;
+    }
+
+    action default = {
+        wait := false;
+        has_wake := false;
     }
 }
 
@@ -42,30 +48,40 @@ module channel_t = {
 module node_t = {
     individual cache_state(A: addr_t): cache_state_t
     individual cache_data(A: addr_t): data_t
-    instance txns(I: txn_idx_t): txn_slot_t
 
     derived cs_is_u(A: addr_t) = cache_state(A) = cs_ud | cache_state(A) = cs_uc
     derived cs_is_c(A: addr_t) = cache_state(A) = cs_sc | cache_state(A) = cs_uc
     derived cs_is_d(A: addr_t) = cache_state(A) = cs_ud
     derived cs_is_i(A: addr_t) = cache_state(A) = cs_i
 
+    after init {
+        cache_state(A) := cs_i;
+    }
+
     instance req_channel: channel_t
     instance data_channel: channel_t
     instance resp_channel: channel_t
     instance snp_channel: channel_t
 
-    after init {
-        cache_state(A) := cs_i;
-    }
+    instance txns(I: txn_idx_t): txn_slot_t
 
     action txn_new returns(r: txn_idx_t) = {
-        assume ~txns(r).in_use;
+        assume r~= txn_idx_null & ~txns(r).in_use;
+        txns(r).default;
         txns(r).in_use := true;
     }
 
     action txn_free (f: txn_idx_t) = {
         assert txns(f).in_use;
         txns(f).in_use := false;
+    }
+
+    individual addr_wait(A: addr_t): txn_idx_t
+
+    derived addr_is_wait(A: addr_t) = addr_wait(A) ~= txn_idx_null
+    
+    after init {
+        addr_wait(A) := txn_idx_null;
     }
 }
 
