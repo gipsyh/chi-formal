@@ -16,9 +16,9 @@ module txn_slot_t = {
 }
 
 module channel_t(slots) = {
-    var head: idx_t
-    var tail: idx_t
-    individual map(I: idx_t): idx_t
+    var head: nat_idx_t
+    var tail: nat_idx_t
+    individual map(I: nat_idx_t): idx_t
 
     after init {
         head := 1;

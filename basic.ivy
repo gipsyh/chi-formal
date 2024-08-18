@@ -5,9 +5,10 @@ type data_t
 type nid_t
 
 type idx_t
-interpret idx_t -> nat
 individual null: idx_t
-axiom null = 0
+
+type nat_idx_t
+interpret nat_idx_t -> nat
 
 type cache_state_t = {cs_i, cs_uc, cs_ud, cs_sc}
 

@@ -1,4 +1,4 @@
-#lang ivy1.8
+#lang ivy1.7
 
 type idx_t
 
@@ -8,8 +8,17 @@ after init {
     in_use(I) := false;
 }
 
+type aa
+interpret aa -> nat
+
+individual a: aa
+
+after init {
+    a := 0
+}
+
 action new(res: idx_t) = {
-    require ~in_use(res);
+    assume ~in_use(res);
     in_use(res) := true;
 }
 
@@ -17,6 +26,8 @@ export action ttt(res: idx_t) = {
     # require ~in_use(res);
     # in_use(res) := true;
     call new(res);
+    a := a + 1;
+    assert a < 5;
 }
 
 export action delete(res: idx_t) = {

@@ -46,16 +46,21 @@ module snp_msg_t = {
 }
 
 module slots_t(obj) = {
-    var p: idx_t
+    relation in_use(I: idx_t)
     instance m(I: idx_t): obj 
 
     after init {
-        p := 1
+        in_use(I) := false
     }
 
-    action new returns(res: idx_t) = {
-        res := p;
-        p := p + 1;
+    action new returns(r: idx_t) = {
+        assume ~in_use(r);
+        in_use(r) := true;
+    }
+
+    action free(f: idx_t) = {
+        assert in_use(f);
+        in_use(f) := false;
     }
 }
 
