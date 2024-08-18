@@ -4,10 +4,10 @@ type addr_t
 type data_t
 type nid_t
 
-type index_t
-interpret index_t -> int
-
-type slot_idx_t
+type idx_t
+interpret idx_t -> nat
+individual null: idx_t
+axiom null = 0
 
 type cache_state_t = {cs_i, cs_uc, cs_ud, cs_sc}
 

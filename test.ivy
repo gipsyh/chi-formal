@@ -1,19 +1,33 @@
 #lang ivy1.7
 
-module ttt = {
-    individual a: bool
-}
+type idx_t
 
-type x_t
-
-interpret x_t -> int
-
-instance xx(X: x_t): ttt
+relation in_use(I: idx_t)
 
 after init {
-    xx(0).a := false;
-    xx(1).a := true;
+    in_use(I) := false;
 }
 
-invariant ~xx(0).a
-invariant xx(1).a
+export action new returns(res: idx_t) = {
+    # require ~in_use(res);
+    # in_use(res) := true;
+    if some (f: idx_t) ~in_use(f) {
+        in_use(f) := true;
+        res := f;
+    } else {
+        assert false;
+    }
+}
+
+export action delete(res: idx_t) = {
+    require in_use(res);
+    in_use(res) := false;
+    # if some (f: idx_t) ~in_use(f) {
+    #     in_use(f) := true;
+    #     res := f;
+    # } else {
+    #     assert false;
+    # }
+}
+
+attribute method = bmc[10]
