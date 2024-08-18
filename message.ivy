@@ -11,6 +11,7 @@ type msg_type_t = { req_read_not_share_dirty_t,
 
 module msg_t = {
     individual in_use: bool
+    individual list_next: midx_t
 
     individual src_id: nid_t
     individual tgt_id: nid_t
@@ -29,32 +30,21 @@ module msg_t = {
     after init {
         in_use := false
     }
+
+    action default = {
+        list_next := midx_null;
+    }
 }
 
 instance msg(I: midx_t): msg_t
 
-relation msg_le(X: midx_t, Y: midx_t)
-# invariant msg_le(X, Y) & msg_le(Y, Z) -> msg_le(X, Z)
-# invariant msg_le(X, Y) & msg_le(Y, X) -> X = Y
-# invariant msg_le(X, Y) -> msg_le(X, X) & msg_le(Y, Y)
-# invariant msg_le(X, X) & msg_le(Y, Y) -> msg_le(X, Y) | msg_le(Y, X)
-# invariant msg(X).in_use <-> msg_le(X, X)
-
-after init {
-    msg_le(X, Y) := false;
-}
-
-action msg_new returns(msg_r: midx_t) = {
-    assume ~msg(msg_r).in_use;
-    msg(msg_r).in_use := true;
-    assert ~msg_le(msg_r, msg_r);
-    msg_le(msg_r, msg_r) := true;
-    msg_le(msg_r, X) := msg_le(X, X);
+action msg_new returns(msgr: midx_t) = {
+    assume msgr ~= midx_null & ~msg(msgr).in_use;
+    msg(msgr).default;
+    msg(msgr).in_use := true;
 }
 
 action msg_free(f: midx_t) = {
-    assert msg(f).in_use & msg_le(f, f);
+    assert msg(f).in_use;
     msg(f).in_use := false;
-    msg_le(X, f) := false;
-    msg_le(f, X) := false;
 }
