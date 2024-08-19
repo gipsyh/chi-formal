@@ -19,3 +19,5 @@ axiom hn_nid ~= sn_nid
 derived is_rn(N: nid_t) = N ~= hn_nid & N ~= sn_nid
 derived is_hn(N: nid_t) = N = hn_nid
 derived is_sn(N: nid_t) = N = sn_nid
+
+individual memory(A: addr_t): data_t

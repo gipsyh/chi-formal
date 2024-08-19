@@ -1,0 +1,15 @@
+#lang ivy1.7
+
+include node
+
+action send_req_read_no_snp(src: nid_t, tgt: nid_t, txn: txn_idx_t,
+                            addr: addr_t, return_nid: nid_t, return_txn_id: txn_idx_t) = {
+    var rmid: midx_t := nodes(tgt).req_channel.send;
+    msg(rmid).src_id := src;
+    msg(rmid).tgt_id := tgt;
+    msg(rmid).txn_id := txn;
+    msg(rmid).addr := addr;
+    msg(rmid).opcode := req_read_no_snp_t;
+    msg(rmid).return_nid := return_nid;
+    msg(rmid).return_txn_id := return_txn_id;
+}

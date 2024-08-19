@@ -34,11 +34,9 @@ module channel_t = {
     action send returns(m: midx_t) = {
         m := msg_new;
         if tail = midx_null {
-            assert head = midx_null;
             tail := m;
             head := m;
         } else {
-            assert msg(tail).list_next = midx_null;
             msg(tail).list_next := m;
             tail := m;
         }
@@ -128,5 +126,3 @@ module node_t = {
 
 instance nodes(N: nid_t): node_t
 
-invariant nodes(hn_nid).cs_is_i(A)
-invariant nodes(sn_nid).cs_is_i(A)

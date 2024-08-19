@@ -1,8 +1,7 @@
 #lang ivy1.7
 
 include node
-
-individual memory(A: addr_t): data_t
+include msgact
 
 export action rn_req_read_not_share_dirty(rn: nid_t, addr: addr_t) = {
     require is_rn(rn) & nodes(rn).cs_is_i(addr);
@@ -15,16 +14,16 @@ export action rn_req_read_not_share_dirty(rn: nid_t, addr: addr_t) = {
     nodes(rn).txns(msg(mid).txn_id).addr := addr;
 }
 
-# export action rn_req_read_unique(rn: nid_t, addr: addr_t) = {
-#     require is_rn(rn) & (nodes(rn).cs_is_i(addr) | nodes(rn).cache_state(addr) = cs_sc);
-#     var mid: midx_t := nodes(hn_nid).req_channel.push;
-#     msg(mid).src_id := rn;
-#     msg(mid).tgt_id := hn_nid;
-#     msg(mid).txn_id := nodes(rn).txn_slots_fifo.push;
-#     msg(mid).addr := addr;
-#     msg(mid).opcode := req_read_unique_t;
-#     nodes(rn).txn_slots(msg(mid).txn_id).addr := addr;
-# }
+export action rn_req_read_unique(rn: nid_t, addr: addr_t) = {
+    require is_rn(rn) & nodes(rn).cs_is_i(addr);
+    var mid: midx_t := nodes(hn_nid).req_channel.send;
+    msg(mid).src_id := rn;
+    msg(mid).tgt_id := hn_nid;
+    msg(mid).txn_id := nodes(rn).txn_new;
+    msg(mid).addr := addr;
+    msg(mid).opcode := req_read_unique_t;
+    nodes(rn).txns(msg(mid).txn_id).addr := addr;
+}
 
 export action hn_handle_req = {
     var mid: midx_t := nodes(hn_nid).req_channel.recv;
@@ -35,6 +34,7 @@ export action hn_handle_req = {
     nodes(hn_nid).txn_set_wait(addr, txn);
     if ~should_wait {
         nodes(hn_nid).txns_unset_wait(txn);
+        hn_handle_req_in_txn(txn);
     }
 }
 
@@ -44,24 +44,37 @@ export action hn_handle_req_in_txn(txn: txn_idx_t) = {
     var addr: addr_t := msg(mid).addr;
     if msg(mid).opcode = req_read_not_share_dirty_t {
         if some (u_rn: nid_t) is_rn(u_rn) & nodes(u_rn).cs_is_u(addr) {
+            assert nodes(u_rn).cs_is_c(addr);
             var smid: midx_t := nodes(u_rn).snp_channel.send;
             msg(smid).src_id := hn_nid;
             msg(smid).tgt_id := u_rn;
             msg(smid).txn_id := txn;
             msg(smid).addr := addr;
             msg(smid).fwd_nid := msg(mid).src_id;
-            msg(smid).opcode := snp_read_not_share_dirty_fwd_t;
+            msg(smid).opcode := snp_not_share_dirty_fwd_t;
             msg(smid).return_txn_id := msg(mid).txn_id;
         } else {
             if nodes(hn_nid).cs_is_i(addr) {
-                var rmid: midx_t := nodes(sn_nid).req_channel.send;
-                msg(rmid).src_id := hn_nid;
-                msg(rmid).tgt_id := sn_nid;
-                msg(rmid).txn_id := txn;
-                msg(rmid).addr := addr;
-                msg(rmid).opcode := req_read_no_snp_t;
-                msg(rmid).return_nid := msg(mid).src_id;
-                msg(rmid).return_txn_id := msg(mid).txn_id;
+                send_req_read_no_snp(hn_nid, sn_nid, txn, addr, msg(mid).src_id, msg(mid).txn_id);
+            } else {
+                assert false;
+            }
+        }
+    } else if msg(mid).opcode = req_read_unique_t {
+        if some (u_rn: nid_t) is_rn(u_rn) & nodes(u_rn).cs_is_u(addr) {
+            # assert nodes(u_rn).cs_is_c(addr);
+            # var smid: midx_t := nodes(u_rn).snp_channel.send;
+            # msg(smid).src_id := hn_nid;
+            # msg(smid).tgt_id := u_rn;
+            # msg(smid).txn_id := txn;
+            # msg(smid).addr := addr;
+            # msg(smid).fwd_nid := msg(mid).src_id;
+            # msg(smid).opcode := snp_not_share_dirty_fwd_t;
+            # msg(smid).return_txn_id := msg(mid).txn_id;
+            assert false;
+        } else {
+            if nodes(hn_nid).cs_is_i(addr) {
+                send_req_read_no_snp(hn_nid, sn_nid, txn, addr, msg(mid).src_id, msg(mid).txn_id);
             } else {
                 assert false;
             }
@@ -120,7 +133,7 @@ export action rn_handle_snp(rn: nid_t) = {
     require is_rn(rn);
     var smid: midx_t := nodes(rn).snp_channel.recv;
     var addr: addr_t := msg(smid).addr;
-    if msg(smid).opcode = snp_read_not_share_dirty_fwd_t {
+    if msg(smid).opcode = snp_not_share_dirty_fwd_t {
         assert nodes(rn).cs_is_u(addr);
         var tgt: nid_t := msg(smid).fwd_nid;
         var dmid: midx_t := nodes(tgt).data_channel.send;

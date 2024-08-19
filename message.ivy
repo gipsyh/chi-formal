@@ -6,7 +6,7 @@ type msg_type_t = { req_read_not_share_dirty_t,
                         req_read_no_snp_t,
                         req_read_unique_t,
                         data_todo_t,
-                        snp_read_not_share_dirty_fwd_t
+                        snp_not_share_dirty_fwd_t
                     }
 
 module msg_t = {
