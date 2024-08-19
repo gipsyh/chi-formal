@@ -26,6 +26,7 @@ module msg_t = {
     # TODO: replace to resp
     individual share: bool
     individual fwd_nid: nid_t
+    individual ret_to_src: bool
 
     after init {
         in_use := false

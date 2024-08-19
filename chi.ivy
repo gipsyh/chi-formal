@@ -14,16 +14,16 @@ export action rn_req_read_not_share_dirty(rn: nid_t, addr: addr_t) = {
     nodes(rn).txns(msg(mid).txn_id).addr := addr;
 }
 
-export action rn_req_read_unique(rn: nid_t, addr: addr_t) = {
-    require is_rn(rn) & nodes(rn).cs_is_i(addr);
-    var mid: midx_t := nodes(hn_nid).req_channel.send;
-    msg(mid).src_id := rn;
-    msg(mid).tgt_id := hn_nid;
-    msg(mid).txn_id := nodes(rn).txn_new;
-    msg(mid).addr := addr;
-    msg(mid).opcode := req_read_unique_t;
-    nodes(rn).txns(msg(mid).txn_id).addr := addr;
-}
+# export action rn_req_read_unique(rn: nid_t, addr: addr_t) = {
+#     require is_rn(rn) & nodes(rn).cs_is_i(addr);
+#     var mid: midx_t := nodes(hn_nid).req_channel.send;
+#     msg(mid).src_id := rn;
+#     msg(mid).tgt_id := hn_nid;
+#     msg(mid).txn_id := nodes(rn).txn_new;
+#     msg(mid).addr := addr;
+#     msg(mid).opcode := req_read_unique_t;
+#     nodes(rn).txns(msg(mid).txn_id).addr := addr;
+# }
 
 export action hn_handle_req = {
     var mid: midx_t := nodes(hn_nid).req_channel.recv;
@@ -53,6 +53,7 @@ export action hn_handle_req_in_txn(txn: txn_idx_t) = {
             msg(smid).fwd_nid := msg(mid).src_id;
             msg(smid).opcode := snp_not_share_dirty_fwd_t;
             msg(smid).return_txn_id := msg(mid).txn_id;
+            msg(smid).ret_to_src := *;
         } else {
             if nodes(hn_nid).cs_is_i(addr) {
                 send_req_read_no_snp(hn_nid, sn_nid, txn, addr, msg(mid).src_id, msg(mid).txn_id);
@@ -134,7 +135,7 @@ export action rn_handle_snp(rn: nid_t) = {
     var smid: midx_t := nodes(rn).snp_channel.recv;
     var addr: addr_t := msg(smid).addr;
     if msg(smid).opcode = snp_not_share_dirty_fwd_t {
-        assert nodes(rn).cs_is_u(addr);
+        assert nodes(rn).cache_state(addr) = cs_uc;
         var tgt: nid_t := msg(smid).fwd_nid;
         var dmid: midx_t := nodes(tgt).data_channel.send;
         msg(dmid).src_id := rn;
@@ -145,6 +146,8 @@ export action rn_handle_snp(rn: nid_t) = {
         msg(dmid).dbid := msg(smid).txn_id;
         msg(dmid).share := true;
         nodes(rn).cache_state(addr) := cs_sc;
+    } else {
+        assert false;
     }
 }
 
