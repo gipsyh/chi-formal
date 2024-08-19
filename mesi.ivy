@@ -1,0 +1,196 @@
+#lang ivy1.7
+
+type address
+type core
+type value
+
+relation memory(A: address, V: value)
+relation cache(C: core, A: address, V: value) 
+relation modified(C: core, A: address)
+relation exclusive(C: core, A: address)
+relation shared(C: core, A: address)
+relation invalid(C: core, A: address)
+
+relation proc_read(C: core, A: address)
+relation proc_write(C: core, A: address, V: value)
+relation bus_in_use
+relation bus_read(C: core, A: address)
+relation bus_read_for_ownership(C: core, A: address)
+relation bus_upgrade(C: core, A: address)
+relation bus_transfer(V: value)
+
+after init {
+    modified(C, A) := false;
+    exclusive(C, A) := false;
+    shared(C, A) := false;
+    invalid(C, A) := true;
+    proc_read(C, A) := false;
+    proc_write(C, A, V) := false;
+    bus_in_use := false;
+    bus_read(C, A) := false;
+    bus_read_for_ownership(C, A) := false;
+    bus_upgrade(C, A) := false;
+    bus_transfer(V) := false;
+}
+
+export action issue_proc_read_invalid(c: core, a: address) = {
+    require invalid(c, a) & ~bus_in_use;
+    proc_read(c, a) := true;
+    bus_read(C, A) := bus_read(C, A) | (C ~= c & A = a);
+    bus_in_use := true;
+}
+
+export action do_bus_read_invalid(c: core, a: address) = {
+    require bus_read(c, a) & invalid(c, a);
+    bus_read(c, a) := false;
+}
+
+export action do_bus_read_valid(c: core, a: address, v: value) = {
+    require bus_read(c, a) & ~invalid(c, a) & cache(c, a, V) = (V = v);
+    if modified(c, a) {
+        memory(a, V) := V = v;
+    };
+    bus_read(c, a) := false;
+    shared(c, a) := true;
+    modified(c, a) := false;
+    exclusive(c, a) := false;
+    bus_transfer(v) := true;
+}
+
+export action complete_proc_read_invalid_shared(c: core, a: address, v: value) = {
+    require invalid(c, a) & proc_read(c, a) & bus_transfer(v) & ~bus_read(C, A);
+    bus_transfer(V) := false;
+    invalid(c, a) := false;
+    shared(c, a) := true;
+    cache(c, a, V) := V = v;
+    bus_in_use := false;
+    proc_read(c, a) := false;
+}
+
+export action complete_proc_read_invalid_exclusive(c: core, a: address, v: value) = {
+    require invalid(c, a) & proc_read(c, a) & ~bus_transfer(V) & ~bus_read(C, A) & memory(a, V) = (V = v);
+    invalid(c, a) := false;
+    exclusive(c, a) := true;
+    cache(c, a, V) := V = v;
+    bus_in_use := false;
+    proc_read(c, a) := false;
+}
+
+export action issue_proc_write_invalid(c: core, a: address, v: value) = {
+    require invalid(c, a) & ~bus_in_use;
+    bus_in_use := true;
+    proc_write(c, a, v) := true;
+    bus_read_for_ownership(C, A) := bus_read_for_ownership(C, A) | (C ~= c & A = a);
+}
+
+export action do_bus_read_for_ownership_invalid(c: core, a: address) = {
+    require bus_read_for_ownership(c, a) & invalid(c, a);
+    bus_read_for_ownership(c, a) := false;
+}
+
+export action do_bus_read_for_ownership_valid(c: core, a: address, v: value) = {
+    require bus_read_for_ownership(c, a) & ~invalid(c, a) & cache(c, a, V) = (V = v);
+    bus_read_for_ownership(c, a) := false;
+    if modified(c, a) {
+        memory(a, V) := (V = v);
+    };
+    invalid(c, a) := true;
+    shared(c, a) := false;
+    modified(c, a) := false;
+    exclusive(c, a) := false;
+    bus_transfer(v) := true;
+}
+
+export action complete_proc_write_invalid(c: core, a: address, v: value) = {
+    require invalid(c, a) & proc_write(c, a, v) & ~bus_read_for_ownership(C, A);
+    bus_transfer(V) := false;
+    invalid(c, a) := false;
+    modified(c, a) := true;
+    cache(c, a, V) := (V = v);
+    bus_in_use := false;
+    proc_write(c, a, v) := false;
+}
+
+export action proc_write_exclusive(c: core, a: address, v: value) = {
+    require exclusive(c, a) & ~bus_in_use;
+    exclusive(c, a) := false;
+    modified(c, a) := true;
+    cache(c, a, V) := (V = v);
+}
+
+export action issue_proc_write_shared(c: core, a: address, v: value) = {
+    require shared(c, a) & ~bus_in_use;
+    bus_in_use := true;
+    proc_write(c, a, v) := true;
+    bus_upgrade(C, A) := bus_upgrade(C, A) | (C ~= c & A = a);
+}
+
+export action do_bus_upgrade(c: core, a: address) = {
+    require bus_upgrade(c, a);
+    bus_upgrade(c, a) := false;
+    invalid(c, a) := true;
+    shared(c, a) := false;
+}
+
+export action complete_proc_write_shared(c: core, a: address, v: value) = {
+    require shared(c, a) & proc_write(c, a, v) & ~bus_upgrade(C, A);
+    shared(c, a) := false;
+    modified(c, a) := true;
+    cache(c, a, V) := (V = v);
+    proc_write(c, a, v) := false;
+    bus_in_use := false;
+}
+
+export action evict_modified(c: core, a: address) = {
+    require ~bus_in_use & modified(c, a);
+    memory(a, V) := cache(c, a, V);
+    modified(c, a) := false;
+    invalid(c, a) := true;
+}
+
+export action evict_exclusive_or_shared(c: core, a: address) = {
+    require ~bus_in_use & (exclusive(c, a) | shared(c, a));
+    exclusive(c, a) := false;
+    shared(c, a) := false;
+    invalid(c, a) := true;
+}
+
+# property
+invariant (~invalid(C, A) & ~modified(C, A)) -> (cache(C, A, V) = memory(A, V))
+
+# invariant ~(invalid(C, A) & modified(C, A))
+# invariant ~(invalid(C, A) & exclusive(C, A))
+# invariant ~(invalid(C, A) & shared(C, A))
+# invariant ~(modified(C, A) & exclusive(C, A))
+# invariant ~(modified(C, A) & shared(C, A))
+# invariant ~(exclusive(C, A) & shared(C, A))
+# invariant exclusive(C1, A) & C1 ~= C2 -> invalid(C2, A)
+# invariant modified(C1, A) & C1 ~= C2 -> invalid(C2, A)
+# invariant bus_read(C, A) -> bus_in_use
+# invariant bus_read_for_ownership(C, A) -> bus_in_use
+# invariant bus_upgrade(C, A) -> bus_in_use
+# invariant bus_transfer(V) -> bus_in_use
+# invariant proc_read(C, A) -> bus_in_use
+# invariant proc_write(C, A, V) -> bus_in_use
+# invariant proc_write(C1, A, V) & bus_read_for_ownership(C2, A) -> invalid(C1, A)
+# invariant proc_write(C1, A, V) & bus_upgrade(C2, A) -> shared(C1, A)
+# invariant ~(proc_write(C, A, V) & bus_upgrade(C, A))
+# invariant proc_write(C, A, V1) & shared(C, A) -> ~bus_transfer(V2)
+# invariant proc_read(C1, A1) & proc_read(C2, A2) -> C1 = C2 & A1 = A2
+# invariant proc_write(C1, A1, V1) & proc_write(C2, A2, V2) -> C1 = C2 & A1 = A2 & V1 = V2
+# invariant ~(proc_read(C1, A1) & proc_write(C2, A2, V))
+# invariant ~(proc_read(C1, A1) & bus_read_for_ownership(C2, A2))
+# invariant ~(proc_read(C1, A1) & bus_upgrade(C2, A2))
+# invariant ~(proc_write(C1, A1, V) & bus_read(C2, A2))
+# invariant proc_read(C1, A1) & bus_read(C2, A2) -> A1 = A2
+# invariant proc_write(C1, A1, V) & bus_read_for_ownership(C2, A2) -> A1 = A2
+# invariant proc_write(C1, A1, V) & bus_upgrade(C2, A2) -> A1 = A2
+# invariant proc_read(C1, A) & ~bus_read(C2, A) & C1 ~= C2 -> shared(C2, A) | invalid(C2, A)
+# invariant proc_read(C1, A) & ~bus_read(C2, A) & C1 ~= C2 & shared(C2, A) -> (bus_transfer(V) = cache(C2, A, V))
+# invariant proc_read(C, A) & bus_transfer(V) -> memory(A, V)
+# invariant proc_read(C1, A) & bus_transfer(V) & ~invalid(C2, A) -> cache(C2, A, V)
+# invariant proc_write(C1, A, V) & invalid(C1, A) & ~bus_read_for_ownership(C2, A) & C1 ~= C2 -> invalid(C2, A)
+# invariant proc_write(C1, A, V) & shared(C1, A) & ~bus_upgrade(C2, A) & C1 ~= C2 -> invalid(C2, A)
+# invariant ~(bus_transfer(V) & modified(C1, A) & (proc_read(C2, A) | proc_write(C2, A, V2)))
+# invariant ~(bus_upgrade(C1, A) & exclusive(C2, A))
+# invariant ~(bus_upgrade(C1, A) & modified(C2, A))
