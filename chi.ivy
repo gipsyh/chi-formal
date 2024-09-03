@@ -151,7 +151,7 @@ export action rn_handle_snp(rn: nid_t) = {
     }
 }
 
-invariant (nodes(X).cs_is_u(A) & nodes(Y).cs_is_u(A)) -> X = Y
+invariant nodes(X).cs_is_u(A) & X ~= Y -> nodes(Y).cs_is_i(A)
 # invariant nodes(X).cs_is_c(A) -> (memory(A) = nodes(X).cache_data(A))
 
 attribute method = bmc[8]
